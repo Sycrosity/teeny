@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "author": "Sycrosity <72102935+Sycrosity@users.noreply.github.com>",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-aitewinrobot-esp32c3-supermini",
+      "id": "esp",
+      "top": -0.3,
+      "left": 5.82,
+      "attrs": { "builder": "rust-std-esp" }
+    },
+    { "type": "board-ssd1306", "id": "oled1", "top": 60.74, "left": 134.63, "attrs": {} },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 169.4,
+      "left": -67.2,
+      "attrs": { "color": "black", "bounce": "1", "key": "ArrowUp" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn2",
+      "top": 179,
+      "left": 249.6,
+      "attrs": { "color": "white", "key": "ArrowDown" }
+    },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -97.3, "left": -105.8, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:3", "pot1:SIG", "gray", [ "h0" ] ],
+    [ "pot1:VCC", "esp:3V3", "red", [ "h-0.8", "v19.2", "h163.2", "v38.59" ] ],
+    [ "pot1:GND", "esp:GND", "black", [ "v0" ] ],
+    [ "esp:GND", "btn1:1.l", "black", [ "h-172.84", "v161.91" ] ],
+    [ "esp:3V3", "oled1:VCC", "red", [ "h0" ] ],
+    [ "esp:GND", "oled1:GND", "black", [ "h0" ] ],
+    [ "esp:6", "oled1:SDA", "green", [ "v-49.29", "h198.7" ] ],
+    [ "esp:7", "oled1:SCL", "orange", [ "v-48.19", "h188.87" ] ],
+    [ "esp:10", "btn1:1.r", "gold", [ "h0" ] ],
+    [ "esp:9", "btn2:1.l", "blue", [ "v116.26", "h208.37", "v28.8" ] ],
+    [ "esp:GND", "btn2:1.r", "black", [ "h0" ] ],
+    [ "btn1:2.l", "esp:3V3", "red", [ "h-38.4", "v38.6", "h220.8", "v-211.01" ] ],
+    [ "esp:3V3", "btn2:2.l", "red", [ "h47.96", "v182.01" ] ]
+  ],
+  "serialMonitor": { "display": "terminal" },
+  "dependencies": {}
+}
