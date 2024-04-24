@@ -59,7 +59,7 @@ embedded-hal = "1.0.0"
 # embedded-hal-old = { version = "0.2.7", package = "embedded-hal" }
 
 embedded-hal-async = "^1.0"
-embedded-hal-bus = { version = "0.1.0", features = ["async"] }
+embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 
 # heapless = { version = "0.8.0", default-features = false }
 
@@ -117,7 +117,7 @@ log = [
 ]
 # defmt = []
 # adc = []
-async = []
+# async = []
 
 [patch.crates-io]
 ssd1306  =  { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306" }
