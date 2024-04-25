@@ -12,14 +12,13 @@ use spotify_mini::{
     prelude::*,
 };
 
-use hal::{
+use esp_hal::{
     analog::adc::{AdcCalCurve, AdcConfig, Attenuation, ADC},
     clock::ClockControl,
     gpio::IO,
     peripherals::{Peripherals, ADC1, I2C0},
     rng::Rng,
     timer::TimerGroup,
-    Blocking,
 };
 
 use embassy_executor::Spawner;
@@ -28,13 +27,12 @@ use esp_println::println;
 use static_cell::StaticCell;
 // use libm::atan2;
 
-use core::cell::RefCell;
-
-#[cfg(feature = "async")]
+// #[cfg(feature = "async")]
 static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2C<'static, I2C0, Async>>> = StaticCell::new();
-#[cfg(not(feature = "async"))]
-static I2C_BUS: StaticCell<Mutex<NoopRawMutex, RefCell<I2C<'static, I2C0, Blocking>>>> =
-    StaticCell::new();
+
+// #[cfg(not(feature = "async"))]
+// static I2C_BUS: StaticCell<Mutex<NoopRawMutex, RefCell<I2C<'static, I2C0, Blocking>>>> =
+// StaticCell::new();
 
 static RNG: StaticCell<Rng> = StaticCell::new();
 
@@ -73,7 +71,7 @@ async fn main(spawner: Spawner) -> ! {
 
     let mut adc1 = ADC::<ADC1>::new(peripherals.ADC1, adc1_config);
 
-    let timer = hal::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
+    let timer = esp_hal::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
     let init = esp_wifi::initialize(
         esp_wifi::EspWifiInitFor::Wifi,
         timer,
@@ -82,6 +80,24 @@ async fn main(spawner: Spawner) -> ! {
         &clocks,
     )
     .unwrap();
+
+    let led = io.pins.gpio8.into_push_pull_output();
+
+    let scl = io.pins.gpio7;
+    let sda = io.pins.gpio6;
+
+    let i2c_bus = &*I2C_BUS.init_with(|| {
+        Mutex::new(I2C::new_async(
+            peripherals.I2C0,
+            sda,
+            scl,
+            400u32.kHz(),
+            &clocks,
+        ))
+    });
+
+    spawner.spawn(blink(led.into())).ok();
+    spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
 
     let wifi = peripherals.WIFI;
     let (wifi_interface, controller) =
@@ -126,27 +142,6 @@ async fn main(spawner: Spawner) -> ! {
         }
         Timer::after(Duration::from_millis(500)).await;
     }
-
-    let led = io.pins.gpio8.into_push_pull_output();
-
-    let scl = io.pins.gpio7;
-    let sda = io.pins.gpio6;
-
-    let i2c_bus = I2C_BUS.init_with(|| {
-        Mutex::new(RefCell::new(I2C::new(
-            peripherals.I2C0,
-            sda,
-            scl,
-            400u32.kHz(),
-            &clocks,
-            None,
-        )))
-    });
-
-    //stream data into RX/TX
-    spawner.spawn(blink(led.into())).ok();
-    // spawner.spawn(screen_counter(display)).ok();
-    spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
 
     'wifi: loop {
         Timer::after(Duration::from_millis(1_000)).await;
