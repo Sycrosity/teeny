@@ -1,0 +1,11 @@
+# Run with `cargo +nightly fmt -- --config-path ./rustfmt.nightly.toml`
+
+edition = "2021"
+# unstable_features = true
+wrap_comments = true
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+format_code_in_doc_comments = true
+format_macro_matchers = true
+hex_literal_case = "Lower"
+format_strings = true
