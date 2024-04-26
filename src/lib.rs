@@ -15,6 +15,7 @@ pub mod errors;
 pub mod logger;
 #[cfg(feature = "net")]
 pub mod net;
+pub mod volume;
 
 pub mod prelude {
 
@@ -25,38 +26,50 @@ pub mod prelude {
 
     pub use core::f64::consts::PI;
 
-    pub use crate::errors::*;
-
     pub use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
-    pub use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
+    pub use embassy_sync::{
+        blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
+        mutex::Mutex,
+        pubsub::PubSubChannel,
+        signal::Signal,
+    };
+
+    pub use crate::errors::*;
 
     pub type SharedI2C =
         I2cDevice<'static, NoopRawMutex, I2C<'static, esp_hal::peripherals::I2C0, Async>>;
 
-    #[allow(unused)]
-    pub use esp_backtrace as _;
+    pub static VOLUME_CHANNEL: PubSubChannel<CriticalSectionRawMutex, f32, 4, 2, 1> =
+        PubSubChannel::new();
 
-    pub use esp_println::{print, println};
+    pub static I2C_BUS: StaticCell<I2cBusMutex> = StaticCell::new();
+
+    pub type I2cBusMutex = Mutex<NoopRawMutex, I2C<'static, esp_hal::peripherals::I2C0, Async>>;
+
+    pub static SHARED_ADC: StaticCell<ADCMutex> = StaticCell::new();
+
+    pub type ADCMutex = Mutex<CriticalSectionRawMutex, ADC<'static, esp_hal::peripherals::ADC1>>;
+
+    pub static RNG: StaticCell<Rng> = StaticCell::new();
 
     pub use embassy_executor::task;
-
+    pub use embassy_time::{Delay, Duration, Instant, Ticker, Timer};
+    #[allow(unused)]
+    pub use esp_backtrace as _;
     pub use esp_hal::{
+        analog::adc::ADC,
         embassy,
         gpio::{AnyPin, Output, PushPull},
         i2c::I2C,
         prelude::*,
+        rng::Rng,
         Async,
     };
-
+    pub use esp_println::{print, println};
     pub use heapless::String;
-
-    pub use nb::block;
-
-    pub use embassy_time::{Delay, Duration, Instant, Ticker, Timer};
-
     pub use log::{debug, error, info, log, trace, warn};
-
-    pub use static_cell::make_static;
-
+    pub use nb::block;
     pub use ssd1306::prelude::*;
+    pub use static_cell::make_static;
+    use static_cell::StaticCell;
 }
