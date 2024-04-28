@@ -6,37 +6,45 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-esp-hal = { version = "0.17.0", features = ["esp32c3", "embassy", "embassy-executor-thread", "async", "embassy-time-timg0", "embedded-io", "embassy-integrated-timers"] }
+esp-hal = { version = "0.17.0", features = [
+  "esp32c3",
+  "embassy",
+  "embassy-executor-thread",
+  "async",
+  "embassy-time-timg0",
+  "embedded-io",
+  "embassy-integrated-timers",
+] }
 esp-backtrace = { version = "0.11.0", features = [
-    "esp32c3",
-    "exception-handler",
-    "panic-handler",
-    "println",
+  "esp32c3",
+  "exception-handler",
+  "panic-handler",
+  "println",
 ] }
 esp-println = { version = "0.9.1", features = ["esp32c3", "uart"] }
 esp-alloc = { version = "0.3.0", optional = true }
 
 #for wifi connectivity for esp controllers.
 esp-wifi = { version = "0.5.0", features = [
-    "esp32c3",
-    "phy-enable-usb",
-    "utils",
-    "wifi",
-    "embassy-net",
-    # "wifi-logs",
-    "dhcpv4"
+  "esp32c3",
+  "phy-enable-usb",
+  "utils",
+  "wifi",
+  "embassy-net",
+  # "wifi-logs",
+  "dhcpv4",
 ], optional = true }
 heapless = "0.8.0"
 smoltcp = { version = "0.11.0", default-features = false, features = [
-    "medium-ethernet",
-    "proto-dhcpv4",
-    "proto-igmp",
-    "proto-ipv4",
-    "socket-dhcpv4",
-    "socket-icmp",
-    "socket-raw",
-    "socket-tcp",
-    "socket-udp",
+  "medium-ethernet",
+  "proto-dhcpv4",
+  "proto-igmp",
+  "proto-ipv4",
+  "socket-dhcpv4",
+  "socket-icmp",
+  "socket-raw",
+  "socket-tcp",
+  "socket-udp",
 ], optional = true }
 
 #the gold standard for logging in rust
@@ -60,16 +68,22 @@ embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 
 # no_std http requests.
-reqwless = { version = "0.11.0", default-features = false, features = ["esp-mbedtls"], optional = true }
-esp-mbedtls = { git = "https://github.com/esp-rs/esp-mbedtls.git",  features = ["esp32c3"], optional = true }
+# reqwless = { version = "0.11.0", default-features = false, features = ["esp-mbedtls"], optional = true }
+# esp-mbedtls = { git = "https://github.com/esp-rs/esp-mbedtls.git",  features = ["esp32c3"], optional = true }
 
 # heapless = { version = "0.8.0", default-features = false }
 
-embassy-executor =      { version = "0.5.0", features = ["nightly"] }
-embassy-time     =      { version = "0.3.0" }
-embassy-sync     =      "0.5.0"
-embassy-net      =      { version = "0.4.0", features = ["proto-ipv4", "dns", "tcp", "medium-ethernet", "dhcpv4"], optional = true }
-embassy-embedded-hal =  { version = "0.1.0" }
+embassy-executor = { version = "0.5.0", features = ["nightly"] }
+embassy-time = { version = "0.3.0" }
+embassy-sync = "0.5.0"
+embassy-net = { version = "0.4.0", features = [
+  "proto-ipv4",
+  "dns",
+  "tcp",
+  "medium-ethernet",
+  "dhcpv4",
+], optional = true }
+embassy-embedded-hal = { version = "0.1.0" }
 
 #
 ssd1306 = { version = "0.9.0" }
@@ -86,7 +100,7 @@ dotenv = "0.15.0"
 opt-level = "s"
 
 [profile.release]
-codegen-units = 1 # LLVM can perform better optimizations using a single thread
+codegen-units = 1        # LLVM can perform better optimizations using a single thread
 debug = 2
 debug-assertions = false
 incremental = false
@@ -98,33 +112,31 @@ overflow-checks = false
 opt-level = 3
 
 [features]
-default = [
-    "log",
-    "net"
-]
+default = ["log", "net"]
 alloc = ["dep:esp-alloc"]
 net = [
-    "dep:esp-wifi",
-    "dep:embassy-net",
-    "dep:embedded-svc",
-    "dep:reqwless",
-    "dep:esp-mbedtls"
+  "dep:esp-wifi",
+  "dep:embassy-net",
+  "dep:embedded-svc",
+  # "dep:reqwless",
+  # "dep:esp-mbedtls"
 ]
 
 log = [
-    "embassy-net/log",
-    "embassy-time/log",
-    "embassy-sync/log",
-    "embassy-executor/log",
-    "embedded-svc/log",
-    "esp-println/log",
-    "esp-hal/log",
-    "esp-wifi/log",
-    "reqwless/log"
+  "embassy-net/log",
+  "embassy-time/log",
+  "embassy-sync/log",
+  "embassy-executor/log",
+  "embedded-svc/log",
+  "esp-println/log",
+  "esp-hal/log",
+  "esp-wifi/log",
+  # "reqwless/log"
 ]
 # defmt = []
 # adc = []
 # async = []
 
 [patch.crates-io]
-ssd1306  =  { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
+ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
+reqwless = { version = "0.11.0", git = "https://github.com/drogue-iot/reqwless" }
