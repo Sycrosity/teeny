@@ -2,7 +2,7 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Only re-run the build script when build.rs is changed - aka never
-    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build.rs,.env");
 
     #[cfg(feature = "defmt")]
     println!("cargo:rustc-link-arg=-Tdefmt.x");
