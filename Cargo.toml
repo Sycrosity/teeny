@@ -142,4 +142,4 @@ log = [
 
 [patch.crates-io]
 ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
-reqwless = { version = "0.11.0", git = "https://github.com/drogue-iot/reqwless" }
+# reqwless = { version = "0.11.0", git = "https://github.com/drogue-iot/reqwless" }

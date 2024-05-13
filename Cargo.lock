@@ -1637,8 +1637,3 @@ dependencies = [
  "quote",
  "syn 2.0.60",
 ]
-
-[[patch.unused]]
-name = "reqwless"
-version = "0.11.0"
-source = "git+https://github.com/drogue-iot/reqwless#0e6eb16784c82a027adc331ed7158f9319a2dc72"
