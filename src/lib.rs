@@ -12,9 +12,11 @@ pub mod blink;
 pub mod display;
 pub mod errors;
 
+pub mod buttons;
 pub mod logger;
 #[cfg(feature = "net")]
 pub mod net;
+pub mod potentiometer;
 pub mod volume;
 
 pub mod prelude {
@@ -39,7 +41,7 @@ pub mod prelude {
     pub type SharedI2C =
         I2cDevice<'static, NoopRawMutex, I2C<'static, esp_hal::peripherals::I2C0, Async>>;
 
-    pub static VOLUME_CHANNEL: PubSubChannel<CriticalSectionRawMutex, f32, 4, 2, 1> =
+    pub static VOLUME_CHANNEL: PubSubChannel<CriticalSectionRawMutex, f32, 2, 2, 1> =
         PubSubChannel::new();
 
     pub static I2C_BUS: StaticCell<I2cBusMutex> = StaticCell::new();
@@ -69,7 +71,6 @@ pub mod prelude {
     pub use heapless::String;
     pub use log::{debug, error, info, log, trace, warn};
     pub use nb::block;
-    pub use ssd1306::prelude::*;
-    pub use static_cell::make_static;
-    use static_cell::StaticCell;
+    pub use ssd1306::{prelude::*, Ssd1306};
+    pub use static_cell::{make_static, StaticCell};
 }
