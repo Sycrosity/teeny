@@ -38,8 +38,8 @@ async fn main(spawner: Spawner) -> ! {
     info!("Logger is setup");
     println!("Hello world!");
 
-    // #[cfg(feature = "alloc")]
-    // spotify_mini::alloc::init_heap();
+    #[cfg(feature = "alloc")]
+    spotify_mini::alloc::init_heap();
 
     let peripherals = Peripherals::take();
 
