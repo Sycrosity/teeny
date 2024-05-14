@@ -14,16 +14,13 @@ esp-hal = { version = "0.17.0", features = [
   "embassy-time-timg0",
   "embedded-io",
   "embassy-integrated-timers",
-  # "embassy-executor-interrupt"
 ] }
-
 esp-backtrace = { version = "0.11.0", features = [
   "esp32c3",
   "exception-handler",
   "panic-handler",
   "println",
 ] }
-
 esp-println = { version = "0.9.1", features = ["esp32c3", "uart"] }
 esp-alloc = { version = "0.3.0", optional = true }
 

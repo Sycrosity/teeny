@@ -2,10 +2,13 @@ use crate::prelude::*;
 
 #[task]
 pub async fn blink(mut led: AnyPin<Output<PushPull>>) {
+    let mut on = led.is_set_high();
+
     loop {
         led.toggle();
+        on = !on;
 
-        if led.is_set_high() {
+        if on {
             info!("ON!");
         } else {
             info!("OFF!");
