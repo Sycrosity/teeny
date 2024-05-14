@@ -18,10 +18,13 @@ use esp_wifi::wifi::WifiStaDevice;
 use httparse::{Header, Status};
 use spotify_mini::{
     blink::blink,
-    display::{display_shapes, display_volume, init_display, screen_counter},
+    buttons::{
+        display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
+    },
+    display::{display_shapes, screen_counter},
     net::{connection, net_task},
     prelude::*,
-    volume::publish_volume,
+    volume::{display_volume, publish_volume},
 };
 
 #[main]
@@ -35,10 +38,11 @@ async fn main(spawner: Spawner) -> ! {
     info!("Logger is setup");
     println!("Hello world!");
 
-    #[cfg(feature = "alloc")]
-    spotify_mini::alloc::init_heap();
+    // #[cfg(feature = "alloc")]
+    // spotify_mini::alloc::init_heap();
 
     let peripherals = Peripherals::take();
+
     let system = peripherals.SYSTEM.split();
 
     let io: IO = IO::new(peripherals.GPIO, peripherals.IO_MUX);
@@ -75,6 +79,9 @@ async fn main(spawner: Spawner) -> ! {
     let scl = io.pins.gpio7;
     let sda = io.pins.gpio6;
 
+    let play_pause_button = io.pins.gpio10.into_pull_down_input();
+    let skip_button = io.pins.gpio5.into_pull_down_input();
+
     let i2c_bus = I2C_BUS.init_with(|| {
         Mutex::new(I2C::new_async(
             peripherals.I2C0,
@@ -85,15 +92,11 @@ async fn main(spawner: Spawner) -> ! {
         ))
     });
 
-    if let Err(e) = init_display(I2cDevice::new(i2c_bus)).await {
-        error!("Error initialising display: {e:?}");
-    };
-
     spawner.spawn(blink(internal_led.into())).ok();
-    spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(display_shapes(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(display_volume(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(publish_volume(adc1, pot_pin)).ok();
+    spawner.must_spawn(publish_play_pause(play_pause_button.into()));
+    spawner.must_spawn(publish_raw_skip(skip_button.into()));
+    spawner.must_spawn(publish_skip());
+    spawner.must_spawn(publish_volume(adc1, pot_pin));
 
     let wifi = peripherals.WIFI;
     let (wifi_interface, controller) =
@@ -101,11 +104,7 @@ async fn main(spawner: Spawner) -> ! {
 
     let config = Config::dhcpv4(Default::default());
 
-    let seed = {
-        let a = rng.random();
-        let b = rng.random();
-        ((a as u64) << u32::BITS) + b as u64
-    };
+    let seed = ((rng.random() as u64) << u32::BITS) + rng.random() as u64;
 
     // Init network stack
     let stack = make_static!(Stack::new(
@@ -115,8 +114,8 @@ async fn main(spawner: Spawner) -> ! {
         seed
     ));
 
-    spawner.spawn(connection(controller)).ok();
-    spawner.spawn(net_task(stack)).ok();
+    spawner.must_spawn(connection(controller));
+    spawner.must_spawn(net_task(stack));
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
@@ -139,16 +138,28 @@ async fn main(spawner: Spawner) -> ! {
         Timer::after(Duration::from_millis(500)).await;
     }
 
+    spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(display_shapes(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(display_volume(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(display_skip(I2cDevice::new(i2c_bus))).ok();
+    spawner
+        .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
+        .ok();
+
     'wifi: loop {
+        info!("Starting wifi loop...");
+
         Timer::after(Duration::from_millis(1_000)).await;
 
         let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
 
         socket.set_timeout(Some(Duration::from_secs(10)));
 
-        // let remote_endpoint = (Ipv4Address::new(142, 250, 185, 115), 80);
-        let address = Ipv4Address::new(192, 168, 1, 44);
-        let port = 8000;
+        let address = Ipv4Address::new(142, 250, 185, 115);
+        let port = 80;
+
+        // let address = Ipv4Address::new(192, 168, 1, 44);
+        // let port = 8000;
         let remote_endpoint = (address, port);
         info!("Connecting to \"{address}:{port}\"...");
         let r = socket.connect(remote_endpoint).await;
@@ -175,10 +186,9 @@ async fn main(spawner: Spawner) -> ! {
 
             if new_packet {
                 let r = socket
-                    // .write_all(b"GET / HTTP/1.0\r\nHost: www.mobile-j.de\r\n\r\n")
-                    .write_all(
-                        b"GET /dhcp HTTP/1.1\r\nHost: 192.168.1.44:8000\r\nAccept: */*\r\n\r\n",
-                    )
+                    .write_all(b"GET / HTTP/1.0\r\nHost: www.mobile-j.de\r\n\r\n")
+                    // .write_all(b"GET / HTTP/1.1\r\nHost: 192.168.1.44:8000\r\nAccept:
+                    // */*\r\n\r\n")
                     .await;
                 if let Err(e) = r {
                     warn!("write error: {:?}", e);
@@ -252,22 +262,17 @@ async fn main(spawner: Spawner) -> ! {
                 "{}",
                 core::str::from_utf8(&buf[header_offset..socket_length]).unwrap()
             );
-
-            Timer::after(Duration::from_secs(1)).await;
         }
         Timer::after(Duration::from_secs(3)).await;
     }
-
-    let play_pause_pin = io.pins.gpio10.into_pull_down_input();
-    let skip_pin = io.pins.gpio9.into_pull_down_input();
 
     let mut ticker = Ticker::every(Duration::from_millis(1000));
 
     loop {
         trace!("KeepAlive tick");
 
-        info!("Play Pause: {}", play_pause_pin.is_high());
-        warn!("Skip: {}", skip_pin.is_high());
+        // info!("Play Pause: {}", play_pause_pin.is_high());
+        // warn!("Skip: {}", skip_pin.is_high());
 
         ticker.next().await;
     }
