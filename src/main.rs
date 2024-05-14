@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embassy_executor::Spawner;
+use embassy_executor::{raw::Executor, Spawner};
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Stack, StackResources};
 use embassy_time::Ticker;
 use esp_hal::{
