@@ -6,8 +6,8 @@
 
 // #[cfg(feature = "adc")]
 // pub mod adc;
-// #[cfg(feature = "alloc")]
-// pub mod alloc;
+#[cfg(feature = "alloc")]
+pub mod alloc;
 pub mod blink;
 pub mod display;
 pub mod errors;
