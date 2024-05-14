@@ -25,7 +25,7 @@ esp-backtrace = { version = "0.11.0", features = [
 ] }
 
 esp-println = { version = "0.9.1", features = ["esp32c3", "uart"] }
-esp-alloc = { version = "0.3.0", optional = true }
+# esp-alloc = { version = "0.3.0", optional = true }
 
 #for wifi connectivity for esp controllers.
 esp-wifi = { version = "0.5.0", features = [
@@ -116,7 +116,7 @@ opt-level = 3
 
 [features]
 default = ["log", "net"]
-alloc = ["dep:esp-alloc"]
+# alloc = ["dep:esp-alloc"]
 net = [
   "dep:esp-wifi",
   "dep:embassy-net",
