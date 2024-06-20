@@ -1,8 +1,6 @@
 `Spotify Mini Controller`
 ==================
 ![CI](https://github.com/Sycrosity/spotify-mini/actions/workflows/ci.yml/badge.svg)
-<!-- [![Pages](https://github.com/cosmiccrew/galaxy/actions/workflows/pages.yml/badge.svg)](https://cosmiccrew.github.io/galaxy)
-![Release](https://github.com/cosmiccrew/galaxy/actions/workflows/release.yml/badge.svg) -->
 
 A teeny tiny Spotify Controller for esp32 devices.
 -------
