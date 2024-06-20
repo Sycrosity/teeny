@@ -13,17 +13,16 @@ A teeny tiny Spotify Controller for esp32 devices.
 2. Install espup at [esp-rs/espup](https://github.com/esp-rs/espup)
 3. Clone the repo `git clone https://github.com/Sycrosity/spotify-mini.git`
 4. `cd spotify-mini`
-5. `cargo run --release` (do not use `cargo run`! On embedded devices the runtime performance of debug mode is orders of magnitude slower.
+5. Install `just` at [just.systems](https://just.systems/) (or with `cargo install just`)
+6. Run with your selected board type, e.g. `just run esp32c3`
 
 -------
 
 ## Contributing
 
-Any and all contributions are welcome! Pull requests are checked for `cargo test`, `cargo clippy` and `cargo +nightly fmt`. Note this project uses unstable cargo fmt settings, and requires installing and running cargo fmt on the nightly edition.
+Any and all contributions are welcome! Pull requests are checked for `cargo clippy` and `cargo +nightly fmt -- --config-path ./rustfmt.nightly.toml`. Note this project uses unstable cargo fmt settings, and requires installing and running cargo fmt on the nightly edition.
 
-Before submitting a PR or issue, please run the following commands and follow their instructions:
-1. `cargo clippy`
-2. `cargo fmt`
+Before submitting a PR or issue, please run `just prepare` the following command and follow its instructions. CI will **not** pass without this.
 
 #### Dev builds
 
