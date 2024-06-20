@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(error_in_core)]
-#![allow(clippy::unused_unit, clippy::const_is_empty)]
+#![allow(clippy::unused_unit)]
 
 // #[cfg(feature = "adc")]
 // pub mod adc;

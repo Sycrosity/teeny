@@ -12,19 +12,33 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  fmt:
+    name: Cargo fmt check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        run: 
+          rustup toolchain install nightly &&
+          rustup component add --toolchain nightly rustfmt
+      - name: Enable caching
+        uses: Swatinem/rust-cache@v2
+      - name: Install Just
+        uses: extractions/setup-just@v1
+      - name: Run command
+        run: just _ci_fmt
+
   rust-checks:
-    name: Rust Checks
+    name: Cargo ${{ matrix.just }} (${{ matrix.board }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        action:
-          - command: build
-            args: --release
-          - command: fmt
-            args: --all -- --check --color always
-          - command: clippy
-            args: --all-features --workspace -Z build-std=alloc -- -D warnings
+        just: ["build","clippy"]
+        board: ["esp32", "esp32c3"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,5 +50,7 @@ jobs:
           ldproxy: false
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
+      - name: Install Just
+        uses: extractions/setup-just@v1
       - name: Run command
-        run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}
+        run: just _ci_${{ matrix.just }} ${{ matrix.board }}
