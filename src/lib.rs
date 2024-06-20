@@ -24,8 +24,6 @@ pub mod prelude {
     pub const SSID: &str = env!("SSID");
     pub const PASSWORD: &str = env!("PASSWORD");
 
-    pub const TICKS_PER_SECOND: u64 = 16_000_000;
-
     pub use core::f64::consts::PI;
 
     pub use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
@@ -38,8 +36,11 @@ pub mod prelude {
 
     pub use crate::errors::*;
 
-    pub type SharedI2C =
-        I2cDevice<'static, NoopRawMutex, I2C<'static, esp_hal::peripherals::I2C0, Async>>;
+    pub type SharedI2C = I2cDevice<
+        'static,
+        embassy_sync::blocking_mutex::raw::NoopRawMutex,
+        I2C<'static, esp_hal::peripherals::I2C0, Async>,
+    >;
 
     pub static VOLUME_CHANNEL: PubSubChannel<CriticalSectionRawMutex, f32, 2, 2, 1> =
         PubSubChannel::new();
@@ -48,9 +49,9 @@ pub mod prelude {
 
     pub type I2cBusMutex = Mutex<NoopRawMutex, I2C<'static, esp_hal::peripherals::I2C0, Async>>;
 
-    pub static SHARED_ADC: StaticCell<ADCMutex> = StaticCell::new();
+    pub static SHARED_ADC: StaticCell<AdcMutex> = StaticCell::new();
 
-    pub type ADCMutex = Mutex<CriticalSectionRawMutex, ADC<'static, esp_hal::peripherals::ADC1>>;
+    pub type AdcMutex = Mutex<CriticalSectionRawMutex, Adc<'static, esp_hal::peripherals::ADC1>>;
 
     pub static RNG: StaticCell<Rng> = StaticCell::new();
 
@@ -59,9 +60,8 @@ pub mod prelude {
     #[allow(unused)]
     pub use esp_backtrace as _;
     pub use esp_hal::{
-        analog::adc::ADC,
-        embassy,
-        gpio::{AnyPin, Output, PushPull},
+        analog::adc::Adc,
+        gpio::{Analog, AnyInput, AnyOutput, Input, Output},
         i2c::I2C,
         prelude::*,
         rng::Rng,

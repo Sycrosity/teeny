@@ -6,30 +6,24 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-esp-hal = { version = "0.17.0", features = [
-  "esp32c3",
-  "embassy",
-  "embassy-executor-thread",
-  "async",
-  "embassy-time-timg0",
-  "embedded-io",
-  "embassy-integrated-timers",
-  # "embassy-executor-interrupt"
+esp-hal = { version = "0.18.0", features = ["async", "embedded-io"] }
+
+esp-hal-embassy = { version = "0.1.0", features = [
+  "integrated-timers",
+  "time-timg0",
 ] }
 
-esp-backtrace = { version = "0.11.0", features = [
-  "esp32c3",
+esp-backtrace = { version = "0.12.0", features = [
   "exception-handler",
   "panic-handler",
   "println",
 ] }
 
-esp-println = { version = "0.9.1", features = ["esp32c3", "uart"] }
+esp-println = { version = "0.9.1", features = ["uart"] }
 # esp-alloc = { version = "0.3.0", optional = true }
 
 #for wifi connectivity for esp controllers.
-esp-wifi = { version = "0.5.0", features = [
-  "esp32c3",
+esp-wifi = { version = "0.6.0", features = [
   "phy-enable-usb",
   "utils",
   "wifi",
@@ -37,7 +31,9 @@ esp-wifi = { version = "0.5.0", features = [
   # "wifi-logs",
   "dhcpv4",
 ], optional = true }
+
 heapless = "0.8.0"
+
 smoltcp = { version = "0.11.0", default-features = false, features = [
   "medium-ethernet",
   "proto-dhcpv4",
@@ -71,14 +67,14 @@ embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 
 # no_std http requests.
-# reqwless = { version = "0.11.0", default-features = false, features = ["esp-mbedtls"], optional = true }
+reqwless = { version = "0.11.0", default-features = false, optional = true }
 # esp-mbedtls = { git = "https://github.com/esp-rs/esp-mbedtls.git",  features = ["esp32c3"], optional = true }
 
 # heapless = { version = "0.8.0", default-features = false }
 
 embassy-executor = { version = "0.5.0", features = ["nightly"] }
-embassy-time = { version = "0.3.0" }
-embassy-sync = "0.5.0"
+embassy-time = { version = "0.3.1" }
+embassy-sync = "0.6.0"
 embassy-net = { version = "0.4.0", features = [
   "proto-ipv4",
   "dns",
@@ -116,12 +112,14 @@ opt-level = 3
 
 [features]
 default = ["log", "net"]
+
 # alloc = ["dep:esp-alloc"]
+
 net = [
   "dep:esp-wifi",
   "dep:embassy-net",
   "dep:embedded-svc",
-  # "dep:reqwless",
+  "dep:reqwless",
   # "dep:esp-mbedtls"
 ]
 
@@ -134,8 +132,27 @@ log = [
   "esp-println/log",
   "esp-hal/log",
   "esp-wifi/log",
-  # "reqwless/log"
+  "reqwless/log",
 ]
+
+esp32 = [
+  "esp-hal/esp32",
+  "esp-hal-embassy/esp32",
+  # "esp-hal-embassy/time-timg0",
+  "esp-backtrace/esp32",
+  "esp-println/esp32",
+  "esp-wifi/esp32",
+]
+
+esp32c3 = [
+  "esp-hal/esp32c3",
+  "esp-hal-embassy/esp32c3",
+  # "esp-hal-embassy/time-systimer-16mhz",
+  "esp-backtrace/esp32c3",
+  "esp-println/esp32c3",
+  "esp-wifi/esp32c3",
+]
+
 # defmt = []
 # adc = []
 # async = []
@@ -143,3 +160,6 @@ log = [
 [patch.crates-io]
 ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
 # reqwless = { version = "0.11.0", git = "https://github.com/drogue-iot/reqwless" }
+
+# embassy-embedded-hal = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", package = "embassy-embedded-hal" }
+embassy-embedded-hal = { version = "0.1.0", path = "/Users/louis/dev/embedded/embassy/embassy-embedded-hal" }
