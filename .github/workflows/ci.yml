@@ -1,0 +1,52 @@
+name: Continuous Integration
+
+on:
+  push:
+    paths-ignore:
+      - "**/README.md"
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  fmt:
+    name: Cargo fmt check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        run: rustup toolchain install nightly
+      - name: Enable caching
+        uses: Swatinem/rust-cache@v2
+      - name: Run command
+        run: just _ci_fmt
+
+  rust-checks:
+    name: Cargo clippy & build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        just: ["build","_ci_clippy"]
+        board: ["esp32", "esp32c3"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32
+          ldproxy: false
+      - name: Enable caching
+        uses: Swatinem/rust-cache@v2
+      - name: Install Just
+        uses: extractions/setup-just@v1
+      - name: Run command
+        run: just ${{ matrix.just }} ${{ matrix.board }}
