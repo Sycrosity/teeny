@@ -3,7 +3,11 @@
 #![feature(type_alias_impl_trait)]
 
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Stack, StackResources};
+use embassy_net::{
+    dns::DnsSocket,
+    tcp::client::{TcpClient, TcpClientState},
+    Config, Stack, StackResources,
+};
 use embassy_time::Ticker;
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
@@ -11,11 +15,15 @@ use esp_hal::{
     gpio::{AnyInput, Io, Level, Pull},
     peripherals::{Peripherals, ADC1},
     rng::Rng,
+    sha::{Sha, ShaMode},
     timer::timg::TimerGroup,
 };
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
-use httparse::{Header, Status};
+use reqwless::{
+    client::{HttpClient, TlsConfig, TlsVerify},
+    request::{Method, RequestBuilder},
+};
 use teeny::{
     blink::blink,
     buttons::{
@@ -57,6 +65,11 @@ async fn main(spawner: Spawner) -> ! {
 
     let rng = Rng::new(peripherals.RNG);
     let mut rng = *RNG.init(rng);
+
+    #[cfg(target_arch = "riscv32")]
+    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
+    #[cfg(target_arch = "xtensa")]
+    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256);
 
     #[cfg(target_arch = "xtensa")]
     let pot_pin = adc1_config.enable_pin(io.pins.gpio32, Attenuation::Attenuation11dB);
@@ -132,9 +145,6 @@ async fn main(spawner: Spawner) -> ! {
     spawner.must_spawn(connection(controller));
     spawner.must_spawn(net_task(stack));
 
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-
     loop {
         trace!("Checking stack state...");
         if stack.is_link_up() {
@@ -161,123 +171,57 @@ async fn main(spawner: Spawner) -> ! {
         .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
         .ok();
 
-    'wifi: loop {
+    loop {
         info!("Starting wifi loop...");
 
-        Timer::after(Duration::from_millis(1_000)).await;
+        let mut rx_buf = [0; 16640];
+        let mut tx_buf = [0; 16640];
 
-        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+        let state = TcpClientState::<1, 4096, 4096>::new();
 
-        socket.set_timeout(Some(Duration::from_secs(10)));
+        let tcp_client = TcpClient::new(stack, &state);
 
-        let address = Ipv4Address::new(142, 250, 185, 115);
-        let port = 80;
+        let dns_socket = DnsSocket::new(stack);
 
-        // let address = Ipv4Address::new(192, 168, 1, 44);
-        // let port = 8000;
-        let remote_endpoint = (address, port);
-        info!("Connecting to \"{address}:{port}\"...");
-        let r = socket.connect(remote_endpoint).await;
-        if let Err(e) = r {
-            error!("connect error: {:?}", e);
-            continue;
+        let config = TlsConfig::new(seed, &mut rx_buf, &mut tx_buf, TlsVerify::None);
+
+        let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
+
+        debug!("HttpClient created");
+
+        let headers = [
+            ("user-agent", "teeny/0.1.0"),
+            ("Host", "example.com"),
+            ("accept", "application/json"),
+            // ("connection", "close"),
+        ];
+
+        let mut header_buf = [0; 1024];
+
+        let mut request = client
+            .request(Method::GET, "https://example.com")
+            .await
+            .unwrap()
+            .content_type(reqwless::headers::ContentType::TextPlain)
+            .headers(&headers);
+
+        debug!("Request sent");
+
+        let response = request.send(&mut header_buf).await.unwrap();
+
+        let content_len = response.content_length.unwrap();
+
+        debug!("Response Recieved");
+
+        let mut buf = [0; 50 * 1024];
+
+        if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
+            error!("{e:?}");
+            break;
         }
-        info!("connected!");
-        let mut buf = [0; 1024];
 
-        let mut new_packet = true;
+        print!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
 
-        let mut remaining_http_bytes = usize::MAX;
-
-        'packet: loop {
-            use embedded_io_async::Write;
-
-            if remaining_http_bytes == 0 {
-                debug!("HTTP Packet over");
-                break 'wifi;
-            }
-
-            debug!("Starting new packet");
-
-            if new_packet {
-                let r = socket
-                    .write_all(b"GET / HTTP/1.0\r\nHost: www.mobile-j.de\r\n\r\n")
-                    // .write_all(b"GET / HTTP/1.1\r\nHost: 192.168.1.44:8000\r\nAccept:
-                    // */*\r\n\r\n")
-                    .await;
-                if let Err(e) = r {
-                    warn!("write error: {:?}", e);
-                    break 'packet;
-                }
-            }
-
-            let socket_length = match socket.read(&mut buf).await {
-                Ok(0) => {
-                    println!("read EOF");
-                    break 'packet;
-                }
-                Ok(n) => n,
-                Err(e) => {
-                    if remaining_http_bytes != 0 {
-                        warn!("read error: {:?}", e);
-                    }
-                    break 'packet;
-                }
-            };
-
-            let header_offset = if new_packet {
-                new_packet = false;
-
-                let mut headers = [httparse::EMPTY_HEADER; 16];
-                let mut res = httparse::Response::new(&mut headers);
-
-                let offset = loop {
-                    match res.parse(&buf[..socket_length]) {
-                        Ok(status) => match status {
-                            Status::Complete(offset) => break offset,
-                            Status::Partial => warn!("Partial HTTP header recieved. Retrying... "),
-                        },
-                        Err(e) => {
-                            error!("{}", e);
-                            break 'packet;
-                        }
-                    };
-                    Timer::after(Duration::from_secs(3)).await;
-                };
-
-                info!("{:#?}", &res.headers);
-
-                res.headers.iter().for_each(|Header { name, value }| {
-                    if *name == "Content-Length" {
-                        if let Ok(content_length) =
-                            str::parse::<usize>(unsafe { core::str::from_utf8_unchecked(value) })
-                        {
-                            remaining_http_bytes = content_length + offset;
-                        } else {
-                            warn!("Content-length could not be parsed!");
-                        }
-                    }
-                });
-
-                offset
-            } else {
-                0
-            };
-
-            info!("Remaining Bytes: {remaining_http_bytes:?}");
-
-            info!(
-                "Socket Length: {}, Header Offset: {}",
-                socket_length, header_offset
-            );
-
-            remaining_http_bytes -= socket_length;
-
-            println!(
-                "{}",
-                core::str::from_utf8(&buf[header_offset..socket_length]).unwrap()
-            );
-        }
         Timer::after(Duration::from_secs(3)).await;
     }
 
@@ -285,10 +229,6 @@ async fn main(spawner: Spawner) -> ! {
 
     loop {
         trace!("KeepAlive tick");
-
-        // info!("Play Pause: {}", play_pause_pin.is_high());
-        // warn!("Skip: {}", skip_pin.is_high());
-
         ticker.next().await;
     }
 }
