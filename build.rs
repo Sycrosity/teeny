@@ -1,10 +1,6 @@
-use std::{env, error::Error, path::PathBuf};
+use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Put the linker script somewhere the linker can find it
-    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    println!("cargo:rustc-link-search={}", out.display());
-
     // Only re-run the build script when build.rs is changed - aka never
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -14,10 +10,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "net")]
     println!("cargo:rustc-link-arg=-Trom_functions.x");
 
-    dotenv::dotenv()?;
+    dotenv::dotenv().ok();
 
-    println!("cargo::rustc-env=SSID={}", std::env::var("SSID")?);
-    println!("cargo::rustc-env=PASSWORD={}", std::env::var("PASSWORD")?);
+    println!(
+        "cargo::rustc-env=SSID={}",
+        std::env::var("SSID").unwrap_or_default()
+    );
+    println!(
+        "cargo::rustc-env=PASSWORD={}",
+        std::env::var("PASSWORD").unwrap_or_default()
+    );
 
     Ok(())
 }
