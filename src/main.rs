@@ -2,39 +2,27 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+use embassy_executor::Spawner;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Stack, StackResources};
-use esp_wifi::wifi::WifiStaDevice;
-use httparse::{Header, Status};
-use spotify_mini::{
-    blink::blink,
-    display::screen_counter,
-    net::{connection, net_task},
-    prelude::*,
-};
-
+use embassy_time::Ticker;
 use esp_hal::{
     analog::adc::{AdcCalCurve, AdcConfig, Attenuation, ADC},
     clock::ClockControl,
     gpio::IO,
-    peripherals::{Peripherals, ADC1, I2C0},
+    peripherals::{Peripherals, ADC1},
     rng::Rng,
     timer::TimerGroup,
 };
-
-use embassy_executor::Spawner;
-use embassy_time::Ticker;
 use esp_println::println;
-use static_cell::StaticCell;
-// use libm::atan2;
-
-// #[cfg(feature = "async")]
-static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2C<'static, I2C0, Async>>> = StaticCell::new();
-
-// #[cfg(not(feature = "async"))]
-// static I2C_BUS: StaticCell<Mutex<NoopRawMutex, RefCell<I2C<'static, I2C0, Blocking>>>> =
-// StaticCell::new();
-
-static RNG: StaticCell<Rng> = StaticCell::new();
+use esp_wifi::wifi::WifiStaDevice;
+use httparse::{Header, Status};
+use spotify_mini::{
+    blink::blink,
+    display::{display_shapes, display_volume, init_display, screen_counter},
+    net::{connection, net_task},
+    prelude::*,
+    volume::publish_volume,
+};
 
 #[main]
 async fn main(spawner: Spawner) -> ! {
@@ -66,10 +54,11 @@ async fn main(spawner: Spawner) -> ! {
     let mut rng = *RNG.init(rng);
 
     let pot_pin = io.pins.gpio3.into_analog();
-    let mut pot_pin = adc1_config
+    let pot_pin = adc1_config
         .enable_pin_with_cal::<_, AdcCalCurve<ADC1>>(pot_pin, Attenuation::Attenuation11dB);
 
-    let mut adc1 = ADC::<ADC1>::new(peripherals.ADC1, adc1_config);
+    let adc1 =
+        &*SHARED_ADC.init_with(|| Mutex::new(ADC::<ADC1>::new(peripherals.ADC1, adc1_config)));
 
     let timer = esp_hal::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
     let init = esp_wifi::initialize(
@@ -81,12 +70,12 @@ async fn main(spawner: Spawner) -> ! {
     )
     .unwrap();
 
-    let led = io.pins.gpio8.into_push_pull_output();
+    let internal_led = io.pins.gpio8.into_push_pull_output();
 
     let scl = io.pins.gpio7;
     let sda = io.pins.gpio6;
 
-    let i2c_bus = &*I2C_BUS.init_with(|| {
+    let i2c_bus = I2C_BUS.init_with(|| {
         Mutex::new(I2C::new_async(
             peripherals.I2C0,
             sda,
@@ -96,8 +85,15 @@ async fn main(spawner: Spawner) -> ! {
         ))
     });
 
-    spawner.spawn(blink(led.into())).ok();
+    if let Err(e) = init_display(I2cDevice::new(i2c_bus)).await {
+        error!("Error initialising display: {e:?}");
+    };
+
+    spawner.spawn(blink(internal_led.into())).ok();
     spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(display_shapes(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(display_volume(I2cDevice::new(i2c_bus))).ok();
+    spawner.spawn(publish_volume(adc1, pot_pin)).ok();
 
     let wifi = peripherals.WIFI;
     let (wifi_interface, controller) =
@@ -126,7 +122,7 @@ async fn main(spawner: Spawner) -> ! {
     let mut tx_buffer = [0; 4096];
 
     loop {
-        debug!("Checking stack state...");
+        trace!("Checking stack state...");
         if stack.is_link_up() {
             debug!("Link is up!");
             break;
@@ -265,13 +261,10 @@ async fn main(spawner: Spawner) -> ! {
     let play_pause_pin = io.pins.gpio10.into_pull_down_input();
     let skip_pin = io.pins.gpio9.into_pull_down_input();
 
-    let mut ticker = Ticker::every(Duration::from_millis(100));
+    let mut ticker = Ticker::every(Duration::from_millis(1000));
 
     loop {
         trace!("KeepAlive tick");
-
-        let pin_value = nb::block!(adc1.read_oneshot(&mut pot_pin)).unwrap();
-        debug!("ADC reading =  {}", pin_value);
 
         info!("Play Pause: {}", play_pause_pin.is_high());
         warn!("Skip: {}", skip_pin.is_high());
