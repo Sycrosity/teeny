@@ -26,7 +26,7 @@ esp-wifi = { version = "0.5.0", features = [
     # "wifi-logs",
     "dhcpv4"
 ], optional = true }
-# heapless = { version = "0.8.0", default-features = false }
+heapless = "0.8.0"
 smoltcp = { version = "0.11.0", default-features = false, features = [
     "medium-ethernet",
     "proto-dhcpv4",
@@ -49,8 +49,6 @@ static_cell = { version = "2.0.0", features = ["nightly"] }
 #traits and functions for working with embedded graphics in rust
 embedded-graphics = { version = "0.8.1", features = ["nalgebra_support"] }
 #a general purpose linear algebra library
-nalgebra = { version = "0.32.5", default-features = false }
-
 
 embedded-svc = { version = "0.27.1", default-features = false, optional = true }
 embedded-io = "0.6.1"
@@ -61,19 +59,23 @@ embedded-hal = "1.0.0"
 embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 
+# no_std http requests.
+reqwless = { version = "0.11.0", default-features = false, features = ["esp-mbedtls"], optional = true }
+esp-mbedtls = { git = "https://github.com/esp-rs/esp-mbedtls.git",  features = ["esp32c3"], optional = true }
+
 # heapless = { version = "0.8.0", default-features = false }
 
 embassy-executor =      { version = "0.5.0", features = ["nightly"] }
 embassy-time     =      { version = "0.3.0" }
-embassy-sync     =      { version = "0.5.0" }
+embassy-sync     =      "0.5.0"
 embassy-net      =      { version = "0.4.0", features = ["proto-ipv4", "dns", "tcp", "medium-ethernet", "dhcpv4"], optional = true }
 embassy-embedded-hal =  { version = "0.1.0" }
 
 #
 ssd1306 = { version = "0.9.0" }
+
 httparse = { version = "1.8.0", default-features = false }
 display-interface = "0.5.0"
-heapless = "0.8.0"
 
 [build-dependencies]
 dotenv = "0.15.0"
@@ -104,7 +106,9 @@ alloc = ["dep:esp-alloc"]
 net = [
     "dep:esp-wifi",
     "dep:embassy-net",
-    "dep:embedded-svc"
+    "dep:embedded-svc",
+    "dep:reqwless",
+    "dep:esp-mbedtls"
 ]
 
 log = [
@@ -115,7 +119,8 @@ log = [
     "embedded-svc/log",
     "esp-println/log",
     "esp-hal/log",
-    "esp-wifi/log"
+    "esp-wifi/log",
+    "reqwless/log"
 ]
 # defmt = []
 # adc = []
