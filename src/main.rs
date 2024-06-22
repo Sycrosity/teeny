@@ -6,12 +6,12 @@ use embassy_executor::Spawner;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Stack, StackResources};
 use embassy_time::Ticker;
 use esp_hal::{
-    analog::adc::{AdcCalCurve, AdcConfig, Attenuation, ADC},
+    analog::adc::{Adc, AdcConfig, Attenuation},
     clock::ClockControl,
-    gpio::IO,
+    gpio::{AnyInput, Io, Level, Pull},
     peripherals::{Peripherals, ADC1},
     rng::Rng,
-    timer::TimerGroup,
+    timer::timg::TimerGroup,
 };
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
@@ -43,44 +43,61 @@ async fn main(spawner: Spawner) -> ! {
 
     let peripherals = Peripherals::take();
 
-    let system = peripherals.SYSTEM.split();
+    let system = esp_hal::system::SystemControl::new(peripherals.SYSTEM);
 
-    let io: IO = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    let io: Io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
     let clocks = ClockControl::max(system.clock_control).freeze();
 
+    // let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
+
     let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
-    embassy::init(&clocks, timer_group0);
+
+    esp_hal_embassy::init(&clocks, timer_group0);
 
     let mut adc1_config = AdcConfig::new();
 
     let rng = Rng::new(peripherals.RNG);
     let mut rng = *RNG.init(rng);
 
-    let pot_pin = io.pins.gpio3.into_analog();
-    let pot_pin = adc1_config
-        .enable_pin_with_cal::<_, AdcCalCurve<ADC1>>(pot_pin, Attenuation::Attenuation11dB);
+    #[cfg(target_arch = "xtensa")]
+    let pot_pin = adc1_config.enable_pin(io.pins.gpio32, Attenuation::Attenuation11dB);
+    #[cfg(target_arch = "riscv32")]
+    let pot_pin = adc1_config.enable_pin_with_cal::<_, esp_hal::analog::adc::AdcCalCurve<ADC1>>(
+        io.pins.gpio3,
+        Attenuation::Attenuation11dB,
+    );
 
     let adc1 =
-        &*SHARED_ADC.init_with(|| Mutex::new(ADC::<ADC1>::new(peripherals.ADC1, adc1_config)));
+        &*SHARED_ADC.init_with(|| Mutex::new(Adc::<ADC1>::new(peripherals.ADC1, adc1_config)));
 
-    let timer = esp_hal::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
+    #[cfg(target_arch = "xtensa")]
+    let timer = TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0;
+    #[cfg(target_arch = "riscv32")]
+    let timer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
+
     let init = esp_wifi::initialize(
         esp_wifi::EspWifiInitFor::Wifi,
         timer,
         rng,
-        system.radio_clock_control,
+        peripherals.RADIO_CLK,
         &clocks,
     )
     .unwrap();
 
-    let internal_led = io.pins.gpio8.into_push_pull_output();
+    let internal_led = if cfg!(feature = "esp32") {
+        AnyOutput::new(io.pins.gpio2, Level::Low)
+    } else if cfg!(feature = "esp32c3") {
+        AnyOutput::new(io.pins.gpio8, Level::Low)
+    } else {
+        unreachable!("Unsupported chip")
+    };
 
     let scl = io.pins.gpio7;
     let sda = io.pins.gpio6;
 
-    let play_pause_button = io.pins.gpio10.into_pull_down_input();
-    let skip_button = io.pins.gpio5.into_pull_down_input();
+    let play_pause_button = AnyInput::new(io.pins.gpio10, Pull::Down);
+    let skip_button = AnyInput::new(io.pins.gpio5, Pull::Down);
 
     let i2c_bus = I2C_BUS.init_with(|| {
         Mutex::new(I2C::new_async(
@@ -92,9 +109,9 @@ async fn main(spawner: Spawner) -> ! {
         ))
     });
 
-    spawner.spawn(blink(internal_led.into())).ok();
-    spawner.must_spawn(publish_play_pause(play_pause_button.into()));
-    spawner.must_spawn(publish_raw_skip(skip_button.into()));
+    spawner.spawn(blink(internal_led)).ok();
+    spawner.must_spawn(publish_play_pause(play_pause_button));
+    spawner.must_spawn(publish_raw_skip(skip_button));
     spawner.must_spawn(publish_skip());
     spawner.must_spawn(publish_volume(adc1, pot_pin));
 
@@ -129,7 +146,7 @@ async fn main(spawner: Spawner) -> ! {
         Timer::after(Duration::from_millis(500)).await;
     }
 
-    info!("Waiting to get IP address...");
+    info!("Waiting to get IP address... ");
     loop {
         if let Some(config) = stack.config_v4() {
             info!("Got IP: {}", config.address);
@@ -220,7 +237,7 @@ async fn main(spawner: Spawner) -> ! {
                     match res.parse(&buf[..socket_length]) {
                         Ok(status) => match status {
                             Status::Complete(offset) => break offset,
-                            Status::Partial => warn!("Partial HTTP header recieved. Retrying..."),
+                            Status::Partial => warn!("Partial HTTP header recieved. Retrying... "),
                         },
                         Err(e) => {
                             error!("{}", e);

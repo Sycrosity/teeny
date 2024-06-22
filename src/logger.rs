@@ -1,10 +1,7 @@
 use core::str::FromStr;
 
-use esp_hal::systimer::SystemTimer;
 use esp_println::println;
 use log::LevelFilter;
-
-use crate::prelude::TICKS_PER_SECOND;
 
 const LOG_TARGETS: Option<&'static str> = option_env!("ESP_LOGTARGETS");
 
@@ -72,7 +69,7 @@ impl log::Log for Logger {
             color,
             record.level(),
             record.target(),
-            SystemTimer::now() / TICKS_PER_SECOND,
+            embassy_time::Instant::now().as_secs(),
             reset,
             record.args()
         );

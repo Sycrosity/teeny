@@ -1,19 +1,27 @@
 use esp_hal::{
-    analog::adc::{AdcCalCurve, AdcPin},
-    gpio::{Analog, GpioPin},
+    analog::adc::AdcPin,
+    gpio::GpioPin,
+    // gpio::{Analog, GpioPin},
 };
 
-use crate::{display::DisplayError, potentiometer::Potentiometer, prelude::*};
+use crate::{
+    display::DisplayError,
+    potentiometer::{AdcCal, Potentiometer},
+    prelude::*,
+};
+
+#[cfg(target_arch = "xtensa")]
+const GPIO_PIN: u8 = 32;
+#[cfg(target_arch = "riscv32")]
+const GPIO_PIN: u8 = 3;
 
 #[task]
 pub async fn publish_volume(
-    adc: &'static ADCMutex,
-    pot: AdcPin<
-        GpioPin<Analog, 3>,
-        esp_hal::peripherals::ADC1,
-        AdcCalCurve<esp_hal::peripherals::ADC1>,
-    >,
+    adc: &'static AdcMutex,
+    pot: AdcPin<GpioPin<GPIO_PIN>, esp_hal::peripherals::ADC1, AdcCal>,
 ) {
+    // #[cfg(arch = "xtensa")]
+
     let mut pot = Potentiometer::new(pot, adc, 0, 2754);
 
     let mut ticker = Ticker::every(Duration::from_millis(25));

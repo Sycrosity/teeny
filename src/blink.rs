@@ -1,7 +1,9 @@
+use esp_hal::gpio::AnyOutput;
+
 use crate::prelude::*;
 
 #[task]
-pub async fn blink(mut led: AnyPin<Output<PushPull>>) {
+pub async fn blink(mut led: AnyOutput<'static>) {
     loop {
         led.toggle();
 
