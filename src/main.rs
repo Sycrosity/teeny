@@ -34,7 +34,7 @@ async fn main(spawner: Spawner) -> ! {
     // this requires a clean rebuild because of https://github.com/
     // rust-lang/cargo/issues/10358
     #[cfg(feature = "log")]
-    spotify_mini::logger::init_logger_from_env();
+    teeny::logger::init_logger_from_env();
     info!("Logger is setup");
     println!("Hello world!");
 
