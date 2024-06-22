@@ -2,7 +2,6 @@ use core::str::FromStr;
 
 use esp_hal::systimer::SystemTimer;
 use esp_println::println;
-
 use log::LevelFilter;
 
 use crate::prelude::TICKS_PER_SECOND;
