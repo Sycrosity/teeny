@@ -67,7 +67,7 @@ embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 
 # no_std http requests.
-reqwless = { version = "0.11.0", default-features = false, optional = true }
+reqwless = { version = "0.12.0", default-features = false, optional = true }
 # esp-mbedtls = { git = "https://github.com/esp-rs/esp-mbedtls.git",  features = ["esp32c3"], optional = true }
 
 # heapless = { version = "0.8.0", default-features = false }
@@ -82,7 +82,7 @@ embassy-net = { version = "0.4.0", features = [
   "medium-ethernet",
   "dhcpv4",
 ], optional = true }
-embassy-embedded-hal = { version = "0.1.0" }
+embassy-embedded-hal = { version = "0.1.1" }
 
 #
 ssd1306 = { version = "0.9.0" }
@@ -162,4 +162,4 @@ ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306"
 # reqwless = { version = "0.11.0", git = "https://github.com/drogue-iot/reqwless" }
 
 # embassy-embedded-hal = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", package = "embassy-embedded-hal" }
-embassy-embedded-hal = { version = "0.1.0", path = "/Users/louis/dev/embedded/embassy/embassy-embedded-hal" }
+embassy-embedded-hal = { version = "0.1.1", git = "https://github.com/Sycrosity/embassy-embedded-hal" }

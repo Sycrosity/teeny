@@ -267,7 +267,8 @@ checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "embassy-embedded-hal"
-version = "0.1.0"
+version = "0.1.1"
+source = "git+https://github.com/Sycrosity/embassy-embedded-hal#4b7207d2ccf87e3b52951c529847af9531152a54"
 dependencies = [
  "embassy-futures",
  "embassy-sync 0.6.0",
@@ -1336,9 +1337,9 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
 name = "reqwless"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f238db3a2f18fbe0aace4c28c3c673f5cfb584ffc3684d6327ed287a6c86e4"
+checksum = "04ff2a18de08295a6ae5fcdfa2c888e348f526c84c2f011479de4808b14871ea"
 dependencies = [
  "base64",
  "buffered-io",
