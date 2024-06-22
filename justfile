@@ -31,7 +31,7 @@ prepare: fmt (_prepare "esp32") (_prepare "esp32c3")
 
 [group('ci')]
 fix board:
-    cargo +esp fix --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release --allow-dirty
+    cargo +esp clippy --fix --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release --allow-dirty
 
 [group('ci')]
 fmt: _taplo
@@ -50,4 +50,4 @@ _ci_build board: (build board)
 _ci_clippy board:
     cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release --workspace -- -D warnings
 
-_prepare board: (clippy board) (build board)
+_prepare board: (_ci_clippy board) (_ci_build board)
