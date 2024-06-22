@@ -1,12 +1,7 @@
-use esp_hal::gpio::{Input, /* InputOutputPinType, */ PullDown};
-
 use crate::{
     display::{BoundingBox, DisplayError},
     prelude::*,
 };
-
-// #[task]
-// pub async fn play_button(pin: AnyPin<Input<PullDown>, InputOutputPinType>) {}
 
 #[rustfmt::skip]
 const PLAY_BUTTON_ICON: &[u8] = &[
@@ -59,7 +54,7 @@ const PAUSE_BUTTON_ICON: &[u8] = &[
 pub static PLAY_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
 
 #[task]
-pub async fn publish_play_pause(mut pin: AnyPin<Input<PullDown>>) {
+pub async fn publish_play_pause(mut pin: AnyInput<'static>) {
     let signal = &PLAY_SIGNAL;
 
     loop {
@@ -72,6 +67,56 @@ pub async fn publish_play_pause(mut pin: AnyPin<Input<PullDown>>) {
 
 #[task]
 pub async fn display_play_pause(mut i2c: SharedI2C) {
+    async fn display_play_pause_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+        const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(111, 0), Point::new(118, 7));
+
+        const PLAY_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =
+            ImageRaw::<BinaryColor>::new(PLAY_BUTTON_ICON, 4);
+
+        const PAUSE_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =
+            ImageRaw::<BinaryColor>::new(PAUSE_BUTTON_ICON, 4);
+
+        use embedded_graphics::{
+            image::*,
+            pixelcolor::{raw::BigEndian, BinaryColor},
+            prelude::*,
+            primitives::Rectangle,
+        };
+
+        let mut display = Ssd1306::new(
+            ssd1306::I2CDisplayInterface::new(i2c),
+            DisplaySize128x64,
+            DisplayRotation::Rotate0,
+        );
+        display.init().await?;
+        let mut display = display.into_buffered_graphics_mode();
+
+        let signal = &PLAY_SIGNAL;
+
+        loop {
+            display.fill_solid(
+                &Rectangle::with_corners(BOUNDING_BOX.start, BOUNDING_BOX.end),
+                BinaryColor::Off,
+            )?;
+
+            let play = signal.wait().await;
+
+            let raw_image = if play { PLAY_BUTTON } else { PAUSE_BUTTON };
+
+            Image::new(&raw_image, BOUNDING_BOX.start).draw(&mut display)?;
+
+            display.flush().await?;
+
+            Timer::after_millis(250).await;
+
+            display.fill_solid(
+                &Rectangle::with_corners(BOUNDING_BOX.start, BOUNDING_BOX.end),
+                BinaryColor::Off,
+            )?;
+
+            display.flush().await?;
+        }
+    }
     loop {
         if let Err(e) = display_play_pause_internal(&mut i2c).await {
             warn!("Display error: {e:?}");
@@ -83,61 +128,10 @@ pub async fn display_play_pause(mut i2c: SharedI2C) {
     }
 }
 
-async fn display_play_pause_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
-    const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(111, 0), Point::new(118, 7));
-
-    const PLAY_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =
-        ImageRaw::<BinaryColor>::new(PLAY_BUTTON_ICON, 4);
-
-    const PAUSE_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =
-        ImageRaw::<BinaryColor>::new(PAUSE_BUTTON_ICON, 4);
-
-    use embedded_graphics::{
-        image::*,
-        pixelcolor::{raw::BigEndian, BinaryColor},
-        prelude::*,
-        primitives::Rectangle,
-    };
-
-    let mut display = Ssd1306::new(
-        ssd1306::I2CDisplayInterface::new(i2c),
-        DisplaySize128x64,
-        DisplayRotation::Rotate0,
-    );
-    display.init().await?;
-    let mut display = display.into_buffered_graphics_mode();
-
-    let signal = &PLAY_SIGNAL;
-
-    loop {
-        display.fill_solid(
-            &Rectangle::with_corners(BOUNDING_BOX.start, BOUNDING_BOX.end),
-            BinaryColor::Off,
-        )?;
-
-        let play = signal.wait().await;
-
-        let raw_image = if play { PLAY_BUTTON } else { PAUSE_BUTTON };
-
-        Image::new(&raw_image, BOUNDING_BOX.start).draw(&mut display)?;
-
-        display.flush().await?;
-
-        Timer::after_millis(250).await;
-
-        display.fill_solid(
-            &Rectangle::with_corners(BOUNDING_BOX.start, BOUNDING_BOX.end),
-            BinaryColor::Off,
-        )?;
-
-        display.flush().await?;
-    }
-}
-
 pub static RAW_SKIP_SIGNAL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 #[task]
-pub async fn publish_raw_skip(mut pin: AnyPin<Input<PullDown>>) {
+pub async fn publish_raw_skip(mut pin: AnyInput<'static>) {
     let signal = &RAW_SKIP_SIGNAL;
 
     loop {
