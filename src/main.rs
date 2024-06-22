@@ -16,7 +16,7 @@ use esp_hal::{
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
 use httparse::{Header, Status};
-use spotify_mini::{
+use teeny::{
     blink::blink,
     buttons::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
