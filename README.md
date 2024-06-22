@@ -1,8 +1,8 @@
-`Spotify Mini Controller`
+`Teeny`
 ==================
-![CI](https://github.com/Sycrosity/spotify-mini/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Sycrosity/teeny/actions/workflows/ci.yml/badge.svg)
 
-A teeny tiny Spotify Controller for esp32 devices.
+A teeny tiny esp32c3 powered spotify controller.
 -------
 
 ## Download & run
@@ -11,8 +11,8 @@ A teeny tiny Spotify Controller for esp32 devices.
 
 1. Install rust at [rustup.rs](https://rustup.rs)
 2. Install espup at [esp-rs/espup](https://github.com/esp-rs/espup)
-3. Clone the repo `git clone https://github.com/Sycrosity/spotify-mini.git`
-4. `cd spotify-mini`
+3. Clone the repo `git clone https://github.com/Sycrosity/teeny.git`
+4. `cd teeny`
 5. Install `just` at [just.systems](https://just.systems/) (or with `cargo install just`)
 6. Run with your selected board type, e.g. `just run esp32c3`
 

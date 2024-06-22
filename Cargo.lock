@@ -1458,39 +1458,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spotify-mini"
-version = "0.1.0"
-dependencies = [
- "display-interface",
- "dotenv",
- "embassy-embedded-hal",
- "embassy-executor",
- "embassy-net",
- "embassy-sync 0.6.0",
- "embassy-time",
- "embedded-graphics",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
- "embedded-hal-bus",
- "embedded-io",
- "embedded-io-async",
- "embedded-svc",
- "esp-backtrace",
- "esp-hal",
- "esp-hal-embassy",
- "esp-println",
- "esp-wifi",
- "heapless",
- "httparse",
- "libm",
- "log",
- "reqwless",
- "smoltcp",
- "ssd1306",
- "static_cell",
-]
-
-[[package]]
 name = "ssd1306"
 version = "0.9.0"
 source = "git+https://github.com/embedevices-rs/ssd1306?branch=async#d13d2e9f48c4fa10cc57731e3171d79d839180e0"
@@ -1585,6 +1552,39 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "teeny"
+version = "0.1.0"
+dependencies = [
+ "display-interface",
+ "dotenv",
+ "embassy-embedded-hal",
+ "embassy-executor",
+ "embassy-net",
+ "embassy-sync 0.6.0",
+ "embassy-time",
+ "embedded-graphics",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "embedded-hal-bus",
+ "embedded-io",
+ "embedded-io-async",
+ "embedded-svc",
+ "esp-backtrace",
+ "esp-hal",
+ "esp-hal-embassy",
+ "esp-println",
+ "esp-wifi",
+ "heapless",
+ "httparse",
+ "libm",
+ "log",
+ "reqwless",
+ "smoltcp",
+ "ssd1306",
+ "static_cell",
 ]
 
 [[package]]

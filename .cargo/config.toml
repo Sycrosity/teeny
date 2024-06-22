@@ -13,8 +13,8 @@ rustflags = [
 
   # # Required to obtain backtraces (e.g. when using the "esp-backtrace" crate.) on riscv32imc targets.
   # # NOTE: May negatively impact performance of produced code
-  # "-C",
-  # "force-frame-pointers",
+  "-C",
+  "force-frame-pointers",
 ]
 
 target = "riscv32imc-unknown-none-elf"
