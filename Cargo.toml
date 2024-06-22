@@ -1,5 +1,5 @@
 [package]
-name = "spotify-mini"
+name = "teeny"
 version = "0.1.0"
 authors = ["Sycrosity <72102935+Sycrosity@users.noreply.github.com>"]
 edition = "2021"
