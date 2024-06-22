@@ -49,8 +49,6 @@ async fn main(spawner: Spawner) -> ! {
 
     let clocks = ClockControl::max(system.clock_control).freeze();
 
-    // let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
-
     let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
 
     esp_hal_embassy::init(&clocks, timer_group0);
