@@ -73,6 +73,7 @@ embassy-embedded-hal =  { version = "0.1.0" }
 ssd1306 = { version = "0.9.0" }
 httparse = { version = "1.8.0", default-features = false }
 display-interface = "0.5.0"
+heapless = "0.8.0"
 
 [build-dependencies]
 dotenv = "0.15.0"
@@ -121,4 +122,4 @@ log = [
 # async = []
 
 [patch.crates-io]
-ssd1306  =  { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306" }
+ssd1306  =  { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }

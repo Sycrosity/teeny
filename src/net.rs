@@ -35,10 +35,10 @@ pub async fn connection(mut controller: WifiController<'static>) {
         }
         debug!("About to connect...");
         match controller.connect().await {
-            Ok(_) => info!("Wifi connected!"),
+            Ok(()) => info!("Wifi connected!"),
             Err(e) => {
                 error!("Failed to connect to wifi: {e:?}");
-                Timer::after(Duration::from_millis(5000)).await
+                Timer::after(Duration::from_millis(5000)).await;
             }
         }
     }
@@ -46,5 +46,5 @@ pub async fn connection(mut controller: WifiController<'static>) {
 
 #[task]
 pub async fn net_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
-    stack.run().await
+    stack.run().await;
 }
