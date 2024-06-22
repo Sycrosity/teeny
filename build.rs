@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rustc-link-search={}", out.display());
 
     // Only re-run the build script when build.rs is changed - aka never
-    println!("cargo:rerun-if-changed=build.rs,.cargo/config.toml");
+    println!("cargo:rerun-if-changed=build.rs");
 
     #[cfg(feature = "defmt")]
     println!("cargo:rustc-link-arg=-Tdefmt.x");
