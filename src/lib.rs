@@ -45,7 +45,7 @@ pub mod prelude {
     #[cfg(not(feature = "async"))]
     pub use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
     #[cfg(not(feature = "async"))]
-    pub use embassy_sync::blocking_mutex::NoopMutex as Mutex;
+    pub use embassy_sync::blocking_mutex::Mutex;
     #[cfg(feature = "async")]
     pub use embassy_sync::mutex::Mutex;
 

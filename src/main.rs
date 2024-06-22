@@ -33,7 +33,8 @@ use core::cell::RefCell;
 #[cfg(feature = "async")]
 static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2C<'static, I2C0, Async>>> = StaticCell::new();
 #[cfg(not(feature = "async"))]
-static I2C_BUS: StaticCell<Mutex<RefCell<I2C<'static, I2C0, Blocking>>>> = StaticCell::new();
+static I2C_BUS: StaticCell<Mutex<NoopRawMutex, RefCell<I2C<'static, I2C0, Blocking>>>> =
+    StaticCell::new();
 
 static RNG: StaticCell<Rng> = StaticCell::new();
 
@@ -109,7 +110,9 @@ async fn main(spawner: Spawner) -> ! {
     let mut tx_buffer = [0; 4096];
 
     loop {
+        debug!("Checking stack state...");
         if stack.is_link_up() {
+            debug!("Link is up!");
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
@@ -129,17 +132,16 @@ async fn main(spawner: Spawner) -> ! {
     let scl = io.pins.gpio7;
     let sda = io.pins.gpio6;
 
-    let i2c = I2C::new(peripherals.I2C0, sda, scl, 400u32.kHz(), &clocks, None);
-
-    //we must share the i2c bus between the two, as otherwise the functions want to "own" the i2c bus themselves
-    // let i2c_mutex =
-    // singleton!(:Mutex<RefCell<I2C<'static,I2C0, Async>>> = Mutex::new(RefCell::new(i2c)))
-    // .unwrap();
-
-    let i2c_bus = Mutex::new(RefCell::new(i2c));
-    let i2c_bus = &*I2C_BUS.init(i2c_bus);
-
-    // let display = Display::new(I2cDevice::new(i2c_bus), DisplaySize128x64).await.unwrap();
+    let i2c_bus = I2C_BUS.init_with(|| {
+        Mutex::new(RefCell::new(I2C::new(
+            peripherals.I2C0,
+            sda,
+            scl,
+            400u32.kHz(),
+            &clocks,
+            None,
+        )))
+    });
 
     //stream data into RX/TX
     spawner.spawn(blink(led.into())).ok();

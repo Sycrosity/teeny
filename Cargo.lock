@@ -1316,6 +1316,7 @@ dependencies = [
 name = "spotify-mini"
 version = "0.1.0"
 dependencies = [
+ "display-interface",
  "dotenv",
  "embassy-embedded-hal",
  "embassy-executor",
