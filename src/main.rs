@@ -16,7 +16,7 @@ use esp_hal::{
 use esp_println::println;
 use esp_wifi::wifi::WifiStaDevice;
 use httparse::{Header, Status};
-use spotify_mini::{
+use teeny::{
     blink::blink,
     buttons::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
@@ -34,7 +34,7 @@ async fn main(spawner: Spawner) -> ! {
     // this requires a clean rebuild because of https://github.com/
     // rust-lang/cargo/issues/10358
     #[cfg(feature = "log")]
-    spotify_mini::logger::init_logger_from_env();
+    teeny::logger::init_logger_from_env();
     info!("Logger is setup");
     println!("Hello world!");
 
