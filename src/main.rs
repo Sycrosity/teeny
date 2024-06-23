@@ -189,21 +189,28 @@ async fn main(spawner: Spawner) -> ! {
 
         debug!("HttpClient created");
 
+        let token = "TOKEN_GOES_HERE";
+
+        let mut string: String<64> = String::new();
+
+        string.push_str("Bearer ").unwrap();
+        string.push_str(token).unwrap();
+
         let headers = [
             ("User-Agent", "teeny/0.1.0"),
             ("Accept", "*/*"),
             ("Connection", "close"),
-            ("Authorization", "Bearer BQD9_nRYBUggGscfE7H_VgPe3L8948AUZAQzXH9qSyOOLWwSZpMFAP")
+            ("Authorization", string.as_str()),
         ];
 
         let mut header_buf = [0; 1024];
 
         let mut request = client
-        .request(Method::GET, "https://example.com")
-        .await
-        .unwrap()
-        .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
-        .headers(&headers);
+            .request(Method::GET, "https://example.com")
+            .await
+            .unwrap()
+            .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
+            .headers(&headers);
 
         let response = request.send(&mut header_buf).await.unwrap();
 
