@@ -46,8 +46,8 @@ async fn main(spawner: Spawner) -> ! {
     info!("Logger is setup");
     println!("Hello world!");
 
-    // #[cfg(feature = "alloc")]
-    // spotify_mini::alloc::init_heap();
+    #[cfg(feature = "alloc")]
+    teeny::alloc::init_heap();
 
     let peripherals = Peripherals::take();
 
@@ -189,11 +189,18 @@ async fn main(spawner: Spawner) -> ! {
 
         debug!("HttpClient created");
 
+        let token = "TOKEN_GOES_HERE";
+
+        let mut string: String<64> = String::new();
+
+        string.push_str("Bearer ").unwrap();
+        string.push_str(token).unwrap();
+
         let headers = [
-            ("user-agent", "teeny/0.1.0"),
-            ("Host", "example.com"),
-            ("accept", "application/json"),
-            // ("connection", "close"),
+            ("User-Agent", "teeny/0.1.0"),
+            ("Accept", "*/*"),
+            ("Connection", "close"),
+            ("Authorization", string.as_str()),
         ];
 
         let mut header_buf = [0; 1024];
@@ -202,12 +209,12 @@ async fn main(spawner: Spawner) -> ! {
             .request(Method::GET, "https://example.com")
             .await
             .unwrap()
-            .content_type(reqwless::headers::ContentType::TextPlain)
+            .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
             .headers(&headers);
 
-        debug!("Request sent");
-
         let response = request.send(&mut header_buf).await.unwrap();
+
+        debug!("Request sent");
 
         let content_len = response.content_length.unwrap();
 
@@ -216,11 +223,11 @@ async fn main(spawner: Spawner) -> ! {
         let mut buf = [0; 50 * 1024];
 
         if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
-            error!("{e:?}");
+            error!("Error: {e:?}");
             break;
         }
 
-        print!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
+        println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
 
         Timer::after(Duration::from_secs(3)).await;
     }
