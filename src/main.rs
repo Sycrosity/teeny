@@ -19,7 +19,6 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println::println;
-use esp_wifi::wifi::WifiStaDevice;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
@@ -67,9 +66,9 @@ async fn main(spawner: Spawner) -> ! {
     let mut rng = *RNG.init(rng);
 
     #[cfg(target_arch = "riscv32")]
-    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
+    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
     #[cfg(target_arch = "xtensa")]
-    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256);
+    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256);
 
     #[cfg(target_arch = "xtensa")]
     let pot_pin = adc1_config.enable_pin(io.pins.gpio32, Attenuation::Attenuation11dB);
@@ -179,20 +178,58 @@ async fn main(spawner: Spawner) -> ! {
 
         let state = TcpClientState::<1, 4096, 4096>::new();
 
-        let tcp_client = TcpClient::new(stack, &state);
+        let tcp_client = TcpClient::new(wifi_stack, &state);
 
-        let dns_socket = DnsSocket::new(stack);
+        let dns_socket = DnsSocket::new(wifi_stack);
 
         let config = TlsConfig::new(seed, &mut rx_buf, &mut tx_buf, TlsVerify::None);
 
         let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
 
-        debug!("HttpClient created");
+        debug!("Http Client created");
 
+        let mut input_buf: [u8; 45] = [0; 45];
+        rng.read(&mut input_buf[..45]);
+        warn!("{:?}",&input_buf);
+
+        let mut output_buf: Vec<u8, 64> = Vec::new();
+        output_buf.resize(input_buf.len() * 4 / 3 + 4, 0).unwrap();
+        let written_len = BASE64_URL_SAFE_NO_PAD
+        .encode_slice(input_buf, &mut output_buf)
+        .unwrap();
+        warn!("{}",&written_len);
+        output_buf.truncate(written_len);
+
+        let mut output_buf = output_buf.as_slice();
+        // let verifier: String<64> =
+        //     String::from_utf8(output_buf).unwrap();
+
+        let mut hash_output = [0; 32];
+
+        while output_buf.len() > 0 {
+            // All the HW Sha functions are infallible so unwrap is fine to use if you use
+            // block!
+            output_buf = block!(sha.update(output_buf)).unwrap();
+        }
+        block!(sha.finish(hash_output.as_mut_slice())).unwrap();
+
+        let mut base64_buf: Vec<u8, 47> = Vec::new();
+        base64_buf.resize(hash_output.len() * 4 / 3 + 4, 0).unwrap();
+
+        warn!("{}", &hash_output.len());
+
+        println!("SHA256 Hash output {:02x?}", hash_output);        
+
+
+        let len = BASE64_STANDARD_NO_PAD.encode_slice(hash_output, &mut base64_buf).unwrap();
+
+        base64_buf.truncate(len);
+
+        error!("{:?}", String::from_utf8(base64_buf).unwrap());
+
+        
         let token = "TOKEN_GOES_HERE";
-
         let mut string: String<64> = String::new();
-
         string.push_str("Bearer ").unwrap();
         string.push_str(token).unwrap();
 
@@ -206,7 +243,7 @@ async fn main(spawner: Spawner) -> ! {
         let mut header_buf = [0; 1024];
 
         let mut request = client
-            .request(Method::GET, "https://example.com")
+            .request(Method::GET, "https://api.spotify.com")
             .await
             .unwrap()
             .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
