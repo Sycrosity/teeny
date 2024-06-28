@@ -1921,7 +1921,6 @@ dependencies = [
  "libm",
  "log",
  "reqwless",
- "smoltcp",
  "ssd1306",
  "static_cell",
 ]
