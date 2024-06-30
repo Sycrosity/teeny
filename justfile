@@ -1,6 +1,5 @@
 # justfile
 
-
 [private]
 default:
     @just --list
@@ -13,15 +12,15 @@ alias c := clippy
 
 [group('cargo')]
 build board="esp32c3":
-    cargo +esp build --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{board}}
+    cargo +esp build --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{board}} --release
 
 [group('cargo')]
 run board="esp32c3":
-    cargo +esp run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}
+    cargo +esp run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release
 
 [group('cargo')]
 clippy board="esp32c3":
-    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}
+    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release
 
 [group('release')]
 release board="esp32c3":
@@ -38,10 +37,10 @@ fix board:
     cargo +esp clippy --fix --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --allow-dirty
 
 [group('ci')]
-fmt: _taplo
+fmt: taplo
     cargo +nightly fmt -- --config-path ./rustfmt.nightly.toml
 
-_taplo: 
+taplo: 
     @taplo fmt
 
 [group('ci')]
@@ -52,6 +51,6 @@ _ci_build board: (build board)
 
 [group('ci')]
 _ci_clippy board:
-    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace -- -D warnings
+    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace --release -- -D warnings 
 
 _prepare board: (_ci_clippy board) (_ci_build board)

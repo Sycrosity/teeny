@@ -96,6 +96,7 @@ dotenv = "0.15.0"
 opt-level = "s"
 codegen-units = 1        # LLVM can perform better optimizations using a single thread
 debug-assertions = false
+overflow-checks = false
 lto = 'fat'
 
 [profile.release]

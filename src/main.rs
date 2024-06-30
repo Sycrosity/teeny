@@ -245,7 +245,7 @@ async fn main(spawner: Spawner) -> ! {
 
         debug!("Response Recieved");
 
-        let mut buf = [0; 50 * 1024];
+        let mut buf = [0; 32 * 1024];
 
         if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
             error!("Error: {e:?}");
