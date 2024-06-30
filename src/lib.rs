@@ -12,6 +12,7 @@ pub mod blink;
 pub mod display;
 pub mod errors;
 
+pub mod auth;
 pub mod buttons;
 pub mod logger;
 #[cfg(feature = "net")]
@@ -23,6 +24,7 @@ pub mod prelude {
 
     pub const SSID: &str = env!("SSID");
     pub const PASSWORD: &str = env!("PASSWORD");
+    pub const CLIENT_ID: &str = env!("CLIENT_ID");
 
     pub use core::f64::consts::PI;
 
@@ -55,6 +57,7 @@ pub mod prelude {
 
     pub static RNG: StaticCell<Rng> = StaticCell::new();
 
+    pub use base64::prelude::*;
     pub use embassy_executor::task;
     pub use embassy_time::{Delay, Duration, Instant, Ticker, Timer};
     #[allow(unused)]

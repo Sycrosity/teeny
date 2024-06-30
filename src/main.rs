@@ -5,8 +5,11 @@
 use embassy_executor::Spawner;
 use embassy_net::{
     dns::DnsSocket,
-    tcp::client::{TcpClient, TcpClientState},
-    Config, Stack, StackResources,
+    tcp::{
+        client::{TcpClient, TcpClientState},
+        TcpSocket,
+    },
+    Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
 };
 use embassy_time::Ticker;
 use esp_hal::{
@@ -24,12 +27,13 @@ use reqwless::{
     request::{Method, RequestBuilder},
 };
 use teeny::{
+    auth::AuthParams,
     blink::blink,
     buttons::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
     },
     display::{display_shapes, screen_counter},
-    net::{connection, net_task},
+    net::{ap_task, connection, random_utf8, wifi_task},
     prelude::*,
     volume::{display_volume, publish_volume},
 };
@@ -126,36 +130,61 @@ async fn main(spawner: Spawner) -> ! {
     spawner.must_spawn(publish_volume(adc1, pot_pin));
 
     let wifi = peripherals.WIFI;
-    let (wifi_interface, controller) =
-        esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice).unwrap();
+    let (ap_interface, wifi_interface, controller) =
+        esp_wifi::wifi::new_ap_sta(&init, wifi).unwrap();
 
-    let config = Config::dhcpv4(Default::default());
+    let ap_config = Config::ipv4_static(StaticConfigV4 {
+        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+        dns_servers: Default::default(),
+    });
+
+    let wifi_config = Config::dhcpv4(Default::default());
 
     let seed = ((rng.random() as u64) << u32::BITS) + rng.random() as u64;
 
-    // Init network stack
-    let stack = make_static!(Stack::new(
-        wifi_interface,
-        config,
+    // Init access point stack
+    let ap_stack = make_static!(Stack::new(
+        ap_interface,
+        ap_config,
         make_static!(StackResources::<3>::new()),
         seed
     ));
 
-    spawner.must_spawn(connection(controller));
-    spawner.must_spawn(net_task(stack));
+    // Init wifi networking stack
+    let wifi_stack = make_static!(Stack::new(
+        wifi_interface,
+        wifi_config,
+        make_static!(StackResources::<3>::new()),
+        seed
+    ));
+
+    spawner.must_spawn(connection(controller, rng));
+    spawner.must_spawn(ap_task(ap_stack));
+    spawner.must_spawn(wifi_task(wifi_stack));
 
     loop {
         trace!("Checking stack state...");
-        if stack.is_link_up() {
+        if wifi_stack.is_link_up() {
             debug!("Link is up!");
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
     }
 
+    loop {
+        if ap_stack.is_link_up() {
+            break;
+        }
+        Timer::after(Duration::from_millis(500)).await;
+    }
+
+    println!("Connect to the AP `esp-wifi` and point your browser to http://192.168.2.1:8080/");
+    println!("Use a static IP in the range 192.168.2.2 .. 192.168.2.255, use gateway 192.168.2.1");
+
     info!("Waiting to get IP address... ");
     loop {
-        if let Some(config) = stack.config_v4() {
+        if let Some(config) = wifi_stack.config_v4() {
             info!("Got IP: {}", config.address);
             break;
         }
@@ -170,84 +199,107 @@ async fn main(spawner: Spawner) -> ! {
         .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
         .ok();
 
+    let mut ap_rx_buffer = [0; 1536];
+    let mut ap_tx_buffer = [0; 1536];
+
+    let mut ap_socket = TcpSocket::new(ap_stack, &mut ap_rx_buffer, &mut ap_tx_buffer);
+
+    ap_socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+
+    let mut wifi_rx_buf = [0; 16640];
+    let mut wifi_tx_buf = [0; 16640];
+
+    let state = TcpClientState::<1, 4096, 4096>::new();
+
+    let tcp_client = TcpClient::new(wifi_stack, &state);
+
+    let dns_socket = DnsSocket::new(wifi_stack);
+
+    let config = TlsConfig::new(seed, &mut wifi_rx_buf, &mut wifi_tx_buf, TlsVerify::None);
+
+    let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
+
+    debug!("Http Client created");
+
     loop {
         info!("Starting wifi loop...");
 
-        let mut rx_buf = [0; 16640];
-        let mut tx_buf = [0; 16640];
+        let code_challenge_raw = random_utf8::<64>(rng);
 
-        let state = TcpClientState::<1, 4096, 4096>::new();
+        // convert the vec to a string
+        // SAFETY: the verifier is guaranteed to be valid utf8 as it is base64 encoded
+        let code_challenge: String<64> = String::from_utf8(
+            Vec::from_slice(&code_challenge_raw)
+                .expect("should be enough bytes for cloning into the vec"),
+        )
+        .expect("Base64 encoding is valid utf8");
 
-        let tcp_client = TcpClient::new(wifi_stack, &state);
-
-        let dns_socket = DnsSocket::new(wifi_stack);
-
-        let config = TlsConfig::new(seed, &mut rx_buf, &mut tx_buf, TlsVerify::None);
-
-        let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
-
-        debug!("Http Client created");
-
-        let mut input_buf: [u8; 45] = [0; 45];
-        rng.read(&mut input_buf[..45]);
-        warn!("{:?}",&input_buf);
-
-        let mut output_buf: Vec<u8, 64> = Vec::new();
-        output_buf.resize(input_buf.len() * 4 / 3 + 4, 0).unwrap();
-        let written_len = BASE64_URL_SAFE_NO_PAD
-        .encode_slice(input_buf, &mut output_buf)
-        .unwrap();
-        warn!("{}",&written_len);
-        output_buf.truncate(written_len);
-
-        let mut output_buf = output_buf.as_slice();
-        // let verifier: String<64> =
-        //     String::from_utf8(output_buf).unwrap();
-
-        let mut hash_output = [0; 32];
-
-        while output_buf.len() > 0 {
-            // All the HW Sha functions are infallible so unwrap is fine to use if you use
-            // block!
-            output_buf = block!(sha.update(output_buf)).unwrap();
-        }
-        block!(sha.finish(hash_output.as_mut_slice())).unwrap();
-
-        let mut base64_buf: Vec<u8, 47> = Vec::new();
-        base64_buf.resize(hash_output.len() * 4 / 3 + 4, 0).unwrap();
-
-        warn!("{}", &hash_output.len());
-
-        println!("SHA256 Hash output {:02x?}", hash_output);        
-
-
-        let len = BASE64_STANDARD_NO_PAD.encode_slice(hash_output, &mut base64_buf).unwrap();
-
-        base64_buf.truncate(len);
-
-        error!("{:?}", String::from_utf8(base64_buf).unwrap());
-
-        
         let token = "TOKEN_GOES_HERE";
+
         let mut string: String<64> = String::new();
+
         string.push_str("Bearer ").unwrap();
         string.push_str(token).unwrap();
+        let mut code_challenge_raw = code_challenge_raw.as_slice();
+
+        // SHA256 Hashing the verifier
+        while !code_challenge_raw.is_empty() {
+            // SAFETY: All the HW Sha functions are infallible so unwrap is fine to use if
+            // you use block!
+            code_challenge_raw = block!(sha.update(code_challenge_raw)).unwrap();
+        }
+
+        let mut hash_buffer: [u8; 32] = [0; 32];
+
+        block!(sha.finish(hash_buffer.as_mut_slice())).unwrap();
+
+        let mut base64_buf: Vec<u8, 47> = Vec::new();
+        base64_buf.resize(32 * 4 / 3 + 4, 0).unwrap();
+
+        // Encode the hash to base64
+        let real_b64_len = BASE64_STANDARD_NO_PAD
+            .encode_slice(hash_buffer, &mut base64_buf)
+            .unwrap();
+
+        base64_buf.truncate(real_b64_len);
+
+        let _verifier_hash = String::from_utf8(base64_buf).unwrap();
+
+        let auth_params = AuthParams {
+            response_type: "code",
+            client_id: CLIENT_ID,
+            scope: "user-read-private%20user-read-email",
+            code_challenge,
+            code_challenge_method: "S256",
+            redirect_uri: "http://192.168.2.1/callback",
+        };
 
         let headers = [
             ("User-Agent", "teeny/0.1.0"),
             ("Accept", "*/*"),
             ("Connection", "close"),
-            ("Authorization", string.as_str()),
         ];
 
-        let mut header_buf = [0; 1024];
+        let mut header_buf = [0; 1024 * 8];
+
+        let mut auth_path: String<512> = String::new();
+
+        auth_path.push_str("/authorize").unwrap();
+        auth_path
+            .push_str(auth_params.to_string().as_str())
+            .inspect_err(|e| println!("{e:?}"))
+            .unwrap();
+
+        println!("{:#?}", &auth_path);
 
         let mut request = client
-            .request(Method::GET, "https://api.spotify.com")
+            .request(Method::GET, "https://accounts.spotify.com")
             .await
             .unwrap()
-            .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
+            .path(&auth_path)
             .headers(&headers);
+
+        // println!("{:#?}", &request.build());
 
         let response = request.send(&mut header_buf).await.unwrap();
 
@@ -257,7 +309,7 @@ async fn main(spawner: Spawner) -> ! {
 
         debug!("Response Recieved");
 
-        let mut buf = [0; 50 * 1024];
+        let mut buf = [0; 32 * 1024];
 
         if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
             error!("Error: {e:?}");
@@ -265,6 +317,46 @@ async fn main(spawner: Spawner) -> ! {
         }
 
         println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
+
+        {
+
+            // let token = "TOKEN_GOES_HERE";
+            // let mut string: String<64> = String::new();
+            // string.push_str("Bearer ").unwrap();
+            // string.push_str(token).unwrap();
+
+            // let headers = [
+            //     ("User-Agent", "teeny/0.1.0"),
+            //     ("Accept", "*/*"),
+            //     ("Connection", "close"),
+            //     ("Authorization", string.as_str()),
+            // ];
+
+            // let mut request = client
+            //     .request(Method::GET, "https://accounts.spotify.com")
+            //     .await
+            //     .unwrap()
+            //     .path("/authorise")
+            //     .headers(&headers);
+
+            // let response = request.send(&mut header_buf).await.unwrap();
+
+            // debug!("Request sent");
+
+            // let content_len = response.content_length.unwrap();
+
+            // debug!("Response Recieved");
+
+            // let mut buf = [0; 50 * 1024];
+
+            // if let Err(e) = response.body().reader().read_to_end(&mut
+            // buf).await {     error!("Error: {e:?}");
+            //     break;
+            // }
+
+            // println!("{:#?}",
+            // core::str::from_utf8(&buf[..content_len]).unwrap());
+        }
 
         Timer::after(Duration::from_secs(3)).await;
     }
