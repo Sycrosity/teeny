@@ -2,11 +2,12 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+// use base64::{prelude::*, Engine};
 use embassy_executor::Spawner;
 use embassy_net::{
     dns::DnsSocket,
     tcp::client::{TcpClient, TcpClientState},
-    Config, Stack, StackResources,
+    Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
 };
 use embassy_time::Ticker;
 use esp_hal::{
@@ -19,7 +20,6 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println::println;
-use esp_wifi::wifi::WifiStaDevice;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
@@ -30,7 +30,7 @@ use teeny::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
     },
     display::{display_shapes, screen_counter},
-    net::{connection, net_task},
+    net::{ap_task, connection, wifi_task},
     prelude::*,
     volume::{display_volume, publish_volume},
 };
@@ -127,36 +127,61 @@ async fn main(spawner: Spawner) -> ! {
     spawner.must_spawn(publish_volume(adc1, pot_pin));
 
     let wifi = peripherals.WIFI;
-    let (wifi_interface, controller) =
-        esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice).unwrap();
+    let (ap_interface, wifi_interface, controller) =
+        esp_wifi::wifi::new_ap_sta(&init, wifi).unwrap();
 
-    let config = Config::dhcpv4(Default::default());
+    let ap_config = Config::ipv4_static(StaticConfigV4 {
+        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+        dns_servers: Default::default(),
+    });
+
+    let wifi_config = Config::dhcpv4(Default::default());
 
     let seed = ((rng.random() as u64) << u32::BITS) + rng.random() as u64;
 
-    // Init network stack
-    let stack = make_static!(Stack::new(
-        wifi_interface,
-        config,
+    // Init access point stack
+    let ap_stack = make_static!(Stack::new(
+        ap_interface,
+        ap_config,
         make_static!(StackResources::<3>::new()),
         seed
     ));
 
-    spawner.must_spawn(connection(controller));
-    spawner.must_spawn(net_task(stack));
+    // Init wifi networking stack
+    let wifi_stack = make_static!(Stack::new(
+        wifi_interface,
+        wifi_config,
+        make_static!(StackResources::<3>::new()),
+        seed
+    ));
+
+    spawner.must_spawn(connection(controller, rng));
+    spawner.must_spawn(ap_task(ap_stack));
+    spawner.must_spawn(wifi_task(wifi_stack));
 
     loop {
         trace!("Checking stack state...");
-        if stack.is_link_up() {
+        if wifi_stack.is_link_up() {
             debug!("Link is up!");
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
     }
 
+    loop {
+        if ap_stack.is_link_up() {
+            break;
+        }
+        Timer::after(Duration::from_millis(500)).await;
+    }
+
+    println!("Connect to the AP `esp-wifi` and point your browser to http://192.168.2.1:8080/");
+    println!("Use a static IP in the range 192.168.2.2 .. 192.168.2.255, use gateway 192.168.2.1");
+
     info!("Waiting to get IP address... ");
     loop {
-        if let Some(config) = stack.config_v4() {
+        if let Some(config) = wifi_stack.config_v4() {
             info!("Got IP: {}", config.address);
             break;
         }
@@ -179,9 +204,9 @@ async fn main(spawner: Spawner) -> ! {
 
         let state = TcpClientState::<1, 4096, 4096>::new();
 
-        let tcp_client = TcpClient::new(stack, &state);
+        let tcp_client = TcpClient::new(wifi_stack, &state);
 
-        let dns_socket = DnsSocket::new(stack);
+        let dns_socket = DnsSocket::new(wifi_stack);
 
         let config = TlsConfig::new(seed, &mut rx_buf, &mut tx_buf, TlsVerify::None);
 
@@ -220,7 +245,7 @@ async fn main(spawner: Spawner) -> ! {
 
         debug!("Response Recieved");
 
-        let mut buf = [0; 50 * 1024];
+        let mut buf = [0; 32 * 1024];
 
         if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
             error!("Error: {e:?}");
@@ -228,6 +253,46 @@ async fn main(spawner: Spawner) -> ! {
         }
 
         println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
+
+        {
+
+            // let token = "TOKEN_GOES_HERE";
+            // let mut string: String<64> = String::new();
+            // string.push_str("Bearer ").unwrap();
+            // string.push_str(token).unwrap();
+
+            // let headers = [
+            //     ("User-Agent", "teeny/0.1.0"),
+            //     ("Accept", "*/*"),
+            //     ("Connection", "close"),
+            //     ("Authorization", string.as_str()),
+            // ];
+
+            // let mut request = client
+            //     .request(Method::GET, "https://accounts.spotify.com")
+            //     .await
+            //     .unwrap()
+            //     .path("/authorise")
+            //     .headers(&headers);
+
+            // let response = request.send(&mut header_buf).await.unwrap();
+
+            // debug!("Request sent");
+
+            // let content_len = response.content_length.unwrap();
+
+            // debug!("Response Recieved");
+
+            // let mut buf = [0; 50 * 1024];
+
+            // if let Err(e) = response.body().reader().read_to_end(&mut
+            // buf).await {     error!("Error: {e:?}");
+            //     break;
+            // }
+
+            // println!("{:#?}",
+            // core::str::from_utf8(&buf[..content_len]).unwrap());
+        }
 
         Timer::after(Duration::from_secs(3)).await;
     }

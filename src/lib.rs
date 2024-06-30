@@ -68,7 +68,7 @@ pub mod prelude {
         Async,
     };
     pub use esp_println::{print, println};
-    pub use heapless::String;
+    pub use heapless::{String, Vec};
     pub use log::{debug, error, info, log, trace, warn};
     pub use nb::block;
     pub use ssd1306::{prelude::*, Ssd1306};
