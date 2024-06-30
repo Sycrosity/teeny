@@ -156,4 +156,4 @@ esp32c3 = [
 [patch.crates-io]
 ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
 embassy-embedded-hal = { version = "0.1.1", git = "https://github.com/Sycrosity/embassy-embedded-hal" }
-reqwless = { version = "0.12.0", path = "/Users/louis/dev/embedded/reqwless" }
+# reqwless = { version = "0.12.0", path = "/Users/louis/dev/embedded/reqwless" }
