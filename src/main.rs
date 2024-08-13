@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_in_assoc_type)]
 
 use embassy_executor::Spawner;
 use embassy_net::{
@@ -19,13 +20,14 @@ use esp_hal::{
     peripherals::{Peripherals, ADC1},
     rng::Rng,
     sha::{Sha, ShaMode},
-    timer::timg::TimerGroup,
+    timer::{OneShotTimer, PeriodicTimer},
 };
 use esp_println::println;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
 };
+use static_cell::make_static;
 use teeny::{
     auth::AuthParams,
     blink::blink,

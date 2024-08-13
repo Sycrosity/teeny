@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(impl_trait_in_assoc_type)]
 #![feature(type_alias_impl_trait)]
 #![feature(error_in_core)]
 #![allow(clippy::unused_unit)]
@@ -23,6 +24,7 @@ pub mod volume;
 pub mod prelude {
 
     pub const SSID: &str = env!("SSID");
+
     pub const PASSWORD: &str = env!("PASSWORD");
     pub const CLIENT_ID: &str = env!("CLIENT_ID");
 
