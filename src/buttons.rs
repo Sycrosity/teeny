@@ -1,5 +1,5 @@
 use crate::{
-    display::{BoundingBox, DisplayError},
+    display::{BoundingBox, TeenyDisplayError},
     prelude::*,
 };
 
@@ -67,7 +67,7 @@ pub async fn publish_play_pause(mut pin: AnyInput<'static>) {
 
 #[task]
 pub async fn display_play_pause(mut i2c: SharedI2C) {
-    async fn display_play_pause_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+    async fn display_play_pause_internal(i2c: &mut SharedI2C) -> Result<(), TeenyDisplayError> {
         const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(111, 0), Point::new(118, 7));
 
         const PLAY_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =
@@ -175,7 +175,7 @@ pub async fn publish_skip() {
 
 #[task]
 pub async fn display_skip(mut i2c: SharedI2C) {
-    async fn display_skip_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+    async fn display_skip_internal(i2c: &mut SharedI2C) -> Result<(), TeenyDisplayError> {
         const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(120, 0), Point::new(127, 7));
 
         const SKIP_BUTTON: ImageRaw<'static, BinaryColor, BigEndian> =

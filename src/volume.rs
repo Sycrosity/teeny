@@ -5,7 +5,7 @@ use esp_hal::{
 };
 
 use crate::{
-    display::DisplayError,
+    display::TeenyDisplayError,
     potentiometer::{AdcCal, Potentiometer},
     prelude::*,
 };
@@ -56,7 +56,7 @@ pub async fn display_volume(mut i2c: SharedI2C) {
     }
 }
 
-async fn display_volume_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+async fn display_volume_internal(i2c: &mut SharedI2C) -> Result<(), TeenyDisplayError> {
     use embedded_graphics::{pixelcolor::BinaryColor, prelude::*, primitives};
 
     let mut display = Ssd1306::new(
