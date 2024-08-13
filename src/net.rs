@@ -48,10 +48,13 @@ pub async fn connection(mut controller: WifiController<'static>, _rng: Rng) {
             ClientConfiguration {
                 ssid: SSID.try_into().unwrap_or_default(),
                 password: PASSWORD.try_into().unwrap_or_default(),
-                auth_method: if PASSWORD.is_empty() {
-                    AuthMethod::None
-                } else {
-                    AuthMethod::default()
+                auth_method: {
+                    #[allow(clippy::const_is_empty)]
+                    if PASSWORD.is_empty() {
+                        AuthMethod::None
+                    } else {
+                        AuthMethod::default()
+                    }
                 },
                 ..Default::default()
             },
@@ -76,6 +79,7 @@ pub async fn connection(mut controller: WifiController<'static>, _rng: Rng) {
         controller.set_configuration(&config).unwrap();
         info!("Starting wifi");
         controller.start().await.unwrap();
+        // controller.connect()
         info!("Wifi started!");
     }
 
