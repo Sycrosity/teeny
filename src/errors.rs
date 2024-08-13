@@ -22,5 +22,4 @@ impl Display for TeenyError {
     }
 }
 
-
 impl core::error::Error for TeenyError {}

@@ -14,7 +14,7 @@ env:
 
 jobs:
   fmt:
-    name: Cargo fmt check
+    name: Cargo fmt/taplo check
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,6 +29,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Install Just
         uses: taiki-e/install-action@just
+      - uses: uncenter/setup-taplo@v1
+        with:
+          version: "0.8.1"
+      - run: taplo fmt foo.toml --check
       - name: Run command
         run: just _ci_fmt
 
