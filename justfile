@@ -12,15 +12,15 @@ alias c := clippy
 
 [group('cargo')]
 build board="esp32c3":
-    cargo +esp build --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{board}} --release
+    cargo +esp build --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{board}}
 
 [group('cargo')]
 run board="esp32c3":
-    cargo +esp run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release
+    cargo +esp run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}
 
 [group('cargo')]
 clippy board="esp32c3":
-    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release
+    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}
 
 [group('release')]
 release board="esp32c3":
@@ -51,6 +51,8 @@ _ci_build board: (build board)
 
 [group('ci')]
 _ci_clippy board:
-    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace --release -- -D warnings 
+    cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace -- -D warnings 
 
 _prepare board: (_ci_clippy board) (_ci_build board)
+
+_prepare_all: (_prepare "esp32c3") (_prepare "esp32")
