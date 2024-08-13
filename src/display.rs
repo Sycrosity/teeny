@@ -15,25 +15,25 @@ const MAX_CHARS: usize = (DisplaySize128x64::WIDTH / 4) as usize;
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
-pub enum DisplayError {
+pub enum TeenyDisplayError {
     Display(display_interface::DisplayError),
     Format(core::fmt::Error),
     TerminalModeError(ssd1306::mode::TerminalModeError),
 }
 
-impl From<display_interface::DisplayError> for DisplayError {
+impl From<display_interface::DisplayError> for TeenyDisplayError {
     fn from(value: display_interface::DisplayError) -> Self {
         Self::Display(value)
     }
 }
 
-impl From<core::fmt::Error> for DisplayError {
+impl From<core::fmt::Error> for TeenyDisplayError {
     fn from(value: core::fmt::Error) -> Self {
         Self::Format(value)
     }
 }
 
-impl From<ssd1306::mode::TerminalModeError> for DisplayError {
+impl From<ssd1306::mode::TerminalModeError> for TeenyDisplayError {
     fn from(value: ssd1306::mode::TerminalModeError) -> Self {
         Self::TerminalModeError(value)
     }
@@ -99,7 +99,7 @@ impl BoundingBox {
 
 #[task]
 pub async fn screen_counter(mut i2c: SharedI2C) {
-    async fn screen_counter_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+    async fn screen_counter_internal(i2c: &mut SharedI2C) -> Result<(), TeenyDisplayError> {
         const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(0, 0), Point::new(64, 6));
 
         let mut display = Ssd1306::new(
@@ -155,7 +155,7 @@ pub async fn screen_counter(mut i2c: SharedI2C) {
 
 #[task]
 pub async fn display_shapes(mut i2c: SharedI2C) {
-    async fn display_shapes_internal(i2c: &mut SharedI2C) -> Result<(), DisplayError> {
+    async fn display_shapes_internal(i2c: &mut SharedI2C) -> Result<(), TeenyDisplayError> {
         let mut display = Ssd1306::new(
             I2CDisplayInterface::new(i2c),
             DisplaySize128x64,

@@ -1,12 +1,15 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_in_assoc_type)]
 
-// use base64::{prelude::*, Engine};
 use embassy_executor::Spawner;
 use embassy_net::{
     dns::DnsSocket,
-    tcp::client::{TcpClient, TcpClientState},
+    tcp::{
+        client::{TcpClient, TcpClientState},
+        TcpSocket,
+    },
     Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
 };
 use embassy_time::Ticker;
@@ -17,20 +20,22 @@ use esp_hal::{
     peripherals::{Peripherals, ADC1},
     rng::Rng,
     sha::{Sha, ShaMode},
-    timer::timg::TimerGroup,
+    timer::{OneShotTimer, PeriodicTimer},
 };
 use esp_println::println;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
 };
+use static_cell::make_static;
 use teeny::{
+    auth::AuthParams,
     blink::blink,
     buttons::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
     },
     display::{display_shapes, screen_counter},
-    net::{ap_task, connection, wifi_task},
+    net::{ap_task, connection, random_utf8, wifi_task},
     prelude::*,
     volume::{display_volume, publish_volume},
 };
@@ -67,9 +72,9 @@ async fn main(spawner: Spawner) -> ! {
     let mut rng = *RNG.init(rng);
 
     #[cfg(target_arch = "riscv32")]
-    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
+    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
     #[cfg(target_arch = "xtensa")]
-    let _hasher = Sha::new(peripherals.SHA, ShaMode::SHA256);
+    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256);
 
     #[cfg(target_arch = "xtensa")]
     let pot_pin = adc1_config.enable_pin(io.pins.gpio32, Attenuation::Attenuation11dB);
@@ -196,23 +201,40 @@ async fn main(spawner: Spawner) -> ! {
         .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
         .ok();
 
+    let mut ap_rx_buffer = [0; 1536];
+    let mut ap_tx_buffer = [0; 1536];
+
+    let mut ap_socket = TcpSocket::new(ap_stack, &mut ap_rx_buffer, &mut ap_tx_buffer);
+
+    ap_socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+
+    let mut wifi_rx_buf = [0; 16640];
+    let mut wifi_tx_buf = [0; 16640];
+
+    let state = TcpClientState::<1, 4096, 4096>::new();
+
+    let tcp_client = TcpClient::new(wifi_stack, &state);
+
+    let dns_socket = DnsSocket::new(wifi_stack);
+
+    let config = TlsConfig::new(seed, &mut wifi_rx_buf, &mut wifi_tx_buf, TlsVerify::None);
+
+    let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
+
+    debug!("Http Client created");
+
     loop {
         info!("Starting wifi loop...");
 
-        let mut rx_buf = [0; 16640];
-        let mut tx_buf = [0; 16640];
+        let code_challenge_raw = random_utf8::<64>(rng);
 
-        let state = TcpClientState::<1, 4096, 4096>::new();
-
-        let tcp_client = TcpClient::new(wifi_stack, &state);
-
-        let dns_socket = DnsSocket::new(wifi_stack);
-
-        let config = TlsConfig::new(seed, &mut rx_buf, &mut tx_buf, TlsVerify::None);
-
-        let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
-
-        debug!("HttpClient created");
+        // convert the vec to a string
+        // SAFETY: the verifier is guaranteed to be valid utf8 as it is base64 encoded
+        let code_challenge: String<64> = String::from_utf8(
+            Vec::from_slice(&code_challenge_raw)
+                .expect("should be enough bytes for cloning into the vec"),
+        )
+        .expect("Base64 encoding is valid utf8");
 
         let token = "TOKEN_GOES_HERE";
 
@@ -220,22 +242,66 @@ async fn main(spawner: Spawner) -> ! {
 
         string.push_str("Bearer ").unwrap();
         string.push_str(token).unwrap();
+        let mut code_challenge_raw = code_challenge_raw.as_slice();
+
+        // SHA256 Hashing the verifier
+        while !code_challenge_raw.is_empty() {
+            // SAFETY: All the HW Sha functions are infallible so unwrap is fine to use if
+            // you use block!
+            code_challenge_raw = block!(sha.update(code_challenge_raw)).unwrap();
+        }
+
+        let mut hash_buffer: [u8; 32] = [0; 32];
+
+        block!(sha.finish(hash_buffer.as_mut_slice())).unwrap();
+
+        let mut base64_buf: Vec<u8, 47> = Vec::new();
+        base64_buf.resize(32 * 4 / 3 + 4, 0).unwrap();
+
+        // Encode the hash to base64
+        let real_b64_len = BASE64_STANDARD_NO_PAD
+            .encode_slice(hash_buffer, &mut base64_buf)
+            .unwrap();
+
+        base64_buf.truncate(real_b64_len);
+
+        let _verifier_hash = String::from_utf8(base64_buf).unwrap();
+
+        let auth_params = AuthParams {
+            response_type: "code",
+            client_id: CLIENT_ID,
+            scope: "user-read-private%20user-read-email",
+            code_challenge,
+            code_challenge_method: "S256",
+            redirect_uri: "http://192.168.2.1/callback",
+        };
 
         let headers = [
             ("User-Agent", "teeny/0.1.0"),
             ("Accept", "*/*"),
             ("Connection", "close"),
-            ("Authorization", string.as_str()),
         ];
 
-        let mut header_buf = [0; 1024];
+        let mut header_buf = [0; 1024 * 8];
+
+        let mut auth_path: String<512> = String::new();
+
+        auth_path.push_str("/authorize").unwrap();
+        auth_path
+            .push_str(auth_params.to_string().as_str())
+            .inspect_err(|e| println!("{e:?}"))
+            .unwrap();
+
+        println!("{:#?}", &auth_path);
 
         let mut request = client
-            .request(Method::GET, "https://example.com")
+            .request(Method::GET, "https://accounts.spotify.com")
             .await
             .unwrap()
-            .path("/v1/artists/0TnOYISbd1XYRBk9myaseg")
+            .path(&auth_path)
             .headers(&headers);
+
+        // println!("{:#?}", &request.build());
 
         let response = request.send(&mut header_buf).await.unwrap();
 
