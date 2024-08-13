@@ -62,9 +62,23 @@ async fn main(spawner: Spawner) -> ! {
 
     let clocks = ClockControl::max(system.clock_control).freeze();
 
-    let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
+    #[cfg(feature = "esp32")]
+    {
+        let timg1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1, &clocks, None);
+        esp_hal_embassy::init(
+            &clocks,
+            make_static!([OneShotTimer::new(timg1.timer0.into())]),
+        );
+    }
 
-    esp_hal_embassy::init(&clocks, timer_group0);
+    #[cfg(not(feature = "esp32"))]
+    {
+        let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
+        esp_hal_embassy::init(
+            &clocks,
+            make_static!([OneShotTimer::new(systimer.alarm0.into())]),
+        );
+    }
 
     let mut adc1_config = AdcConfig::new();
 
@@ -87,10 +101,17 @@ async fn main(spawner: Spawner) -> ! {
     let adc1 =
         &*SHARED_ADC.init_with(|| Mutex::new(Adc::<ADC1>::new(peripherals.ADC1, adc1_config)));
 
-    #[cfg(target_arch = "xtensa")]
-    let timer = TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0;
-    #[cfg(target_arch = "riscv32")]
-    let timer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
+    // #[cfg(target_arch = "xtensa")]
+    // let timer = TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0;
+    // #[cfg(target_arch = "riscv32")]
+    // let timer =
+    // esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
+
+    let timer = PeriodicTimer::new(
+        esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0, &clocks, None)
+            .timer0
+            .into(),
+    );
 
     let init = esp_wifi::initialize(
         esp_wifi::EspWifiInitFor::Wifi,
