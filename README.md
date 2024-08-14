@@ -5,6 +5,14 @@
 A teeny tiny esp32c3 powered spotify controller.
 -------
 
+## Wiring [TODO]
+
+An unfinished wiring list - a complete wiring diagram can be found in [diagram.json](diagram.json), viewable with [wokwi](https://wokwi.com/) and its vscode extension.
++ SCL -> gpio 7
++ SDA -> gpio 6
+
+
+
 ## Download & run
 
 #### From source
