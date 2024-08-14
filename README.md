@@ -30,7 +30,7 @@ An unfinished wiring list - a complete wiring diagram can be found in [diagram.j
 
 Any and all contributions are welcome! Pull requests are checked for `cargo clippy` and `cargo +nightly fmt -- --config-path ./rustfmt.nightly.toml`. Note this project uses unstable cargo fmt settings, and requires installing and running cargo fmt on the nightly edition.
 
-Before submitting a PR or issue, please run `just prepare` the following command and follow its instructions. CI will **not** pass without this.
+Before submitting a PR or issue, please run `just prepare` and follow its instructions. CI will **not** pass without this.
 
 #### Dev builds
 
