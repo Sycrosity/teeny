@@ -35,7 +35,7 @@ use teeny::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
     },
     display::{display_shapes, screen_counter},
-    net::{ap_task, connection, random_utf8, wifi_task},
+    net::{self, ap_task, connection, random_utf8, wifi_task},
     prelude::*,
     volume::{display_volume, publish_volume},
 };
@@ -145,12 +145,6 @@ async fn main(spawner: Spawner) -> ! {
             &clocks,
         ))
     });
-
-    spawner.spawn(blink(internal_led)).ok();
-    spawner.must_spawn(publish_play_pause(play_pause_button));
-    spawner.must_spawn(publish_raw_skip(skip_button));
-    spawner.must_spawn(publish_skip());
-    spawner.must_spawn(publish_volume(adc1, pot_pin));
 
     let wifi = peripherals.WIFI;
     let (ap_interface, wifi_interface, controller) =

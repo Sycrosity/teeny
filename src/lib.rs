@@ -23,6 +23,8 @@ pub mod volume;
 
 pub mod prelude {
 
+    pub use super::*;
+
     pub const SSID: &str = env!("SSID");
 
     pub const PASSWORD: &str = env!("PASSWORD");

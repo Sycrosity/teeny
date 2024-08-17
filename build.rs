@@ -1,6 +1,4 @@
-use std::error::Error;
-
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> miette::Result<()> {
     // Only re-run the build script when build.rs is changed - aka never
     println!("cargo:rerun-if-changed=build.rs,.env");
 
