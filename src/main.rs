@@ -22,22 +22,17 @@ use esp_hal::{
     sha::{Sha, ShaMode},
     timer::{OneShotTimer, PeriodicTimer},
 };
+
 use esp_println::println;
+use esp_wifi::wifi::WifiApDevice;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
 };
-use static_cell::make_static;
 use teeny::{
-    auth::AuthParams,
-    blink::blink,
-    buttons::{
+    auth::AuthParams, blink::blink, buttons::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
-    },
-    display::{display_shapes, screen_counter},
-    net::{self, ap_task, connection, random_utf8, wifi_task},
-    prelude::*,
-    volume::{display_volume, publish_volume},
+    }, display::{display_shapes, screen_counter}, net::{self, ap_task, connection, random_utf8, wifi_task, AppRouter, GlobalState, WifiConfig}, prelude::*, volume::{display_volume, publish_volume}
 };
 
 #[main]
@@ -67,7 +62,9 @@ async fn main(spawner: Spawner) -> ! {
         let timg1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1, &clocks, None);
         esp_hal_embassy::init(
             &clocks,
-            make_static!([OneShotTimer::new(timg1.timer0.into())]),
+            // make_static!([OneShotTimer::new(timg1.timer0.into())]),
+            mk_static!([OneShotTimer<esp_hal::timer::ErasedTimer>;1], [OneShotTimer::new(timg1.timer0.into())]),
+
         );
     }
 
@@ -76,7 +73,8 @@ async fn main(spawner: Spawner) -> ! {
         let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
         esp_hal_embassy::init(
             &clocks,
-            make_static!([OneShotTimer::new(systimer.alarm0.into())]),
+            // make_static!([OneShotTimer::new(systimer.alarm0.into())]),
+            mk_static!([OneShotTimer<esp_hal::timer::ErasedTimer>;1], [OneShotTimer::new(systimer.alarm0.into())]),
         );
     }
 

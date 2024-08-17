@@ -20,14 +20,26 @@ pub mod logger;
 pub mod net;
 pub mod potentiometer;
 pub mod volume;
+pub mod ble;
+
+/// A simplified version of [`make_static`](`static_cell::make_static`), while [rust-analyzer#13824](https://github.com/rust-lang/rust-analyzer/issues/13824) exists (due to TAIT not being implimented yet: [rust#120700](https://github.com/rust-lang/rust/pull/120700)).
+#[macro_export]
+macro_rules! mk_static {
+    ($t:ty,$val:expr) => {{
+        static STATIC_CELL: ::static_cell::StaticCell<$t> = ::static_cell::StaticCell::new();
+        #[deny(unused_attributes)]
+        let x = STATIC_CELL.uninit().write(($val));
+        x
+    }};
+}
 
 pub mod prelude {
 
     pub use super::*;
 
-    pub const SSID: &str = env!("SSID");
+    // pub const SSID: &str = env!("SSID");
 
-    pub const PASSWORD: &str = env!("PASSWORD");
+    // pub const PASSWORD: &str = env!("PASSWORD");
     pub const CLIENT_ID: &str = env!("CLIENT_ID");
 
     pub use core::f64::consts::PI;
