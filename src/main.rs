@@ -23,11 +23,11 @@ use esp_hal::{
     timer::{OneShotTimer, PeriodicTimer},
 };
 use esp_println::println;
+use esp_wifi::wifi::WifiApDevice;
 use reqwless::{
     client::{HttpClient, TlsConfig, TlsVerify},
     request::{Method, RequestBuilder},
 };
-use static_cell::make_static;
 use teeny::{
     auth::AuthParams,
     blink::blink,
@@ -35,7 +35,7 @@ use teeny::{
         display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
     },
     display::{display_shapes, screen_counter},
-    net::{ap_task, connection, random_utf8, wifi_task},
+    net::{self, ap_task, connection, random_utf8, wifi_task, AppRouter, GlobalState, WifiConfig},
     prelude::*,
     volume::{display_volume, publish_volume},
 };
@@ -67,7 +67,11 @@ async fn main(spawner: Spawner) -> ! {
         let timg1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1, &clocks, None);
         esp_hal_embassy::init(
             &clocks,
-            make_static!([OneShotTimer::new(timg1.timer0.into())]),
+            // make_static!([OneShotTimer::new(timg1.timer0.into())]),
+            mk_static!(
+                [OneShotTimer<esp_hal::timer::ErasedTimer>; 1],
+                [OneShotTimer::new(timg1.timer0.into())]
+            ),
         );
     }
 
@@ -76,7 +80,11 @@ async fn main(spawner: Spawner) -> ! {
         let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
         esp_hal_embassy::init(
             &clocks,
-            make_static!([OneShotTimer::new(systimer.alarm0.into())]),
+            // make_static!([OneShotTimer::new(systimer.alarm0.into())]),
+            mk_static!(
+                [OneShotTimer<esp_hal::timer::ErasedTimer>; 1],
+                [OneShotTimer::new(systimer.alarm0.into())]
+            ),
         );
     }
 
@@ -146,19 +154,13 @@ async fn main(spawner: Spawner) -> ! {
         ))
     });
 
-    spawner.spawn(blink(internal_led)).ok();
-    spawner.must_spawn(publish_play_pause(play_pause_button));
-    spawner.must_spawn(publish_raw_skip(skip_button));
-    spawner.must_spawn(publish_skip());
-    spawner.must_spawn(publish_volume(adc1, pot_pin));
-
     let wifi = peripherals.WIFI;
-    let (ap_interface, wifi_interface, controller) =
-        esp_wifi::wifi::new_ap_sta(&init, wifi).unwrap();
+    let (ap_interface, controller) =
+        esp_wifi::wifi::new_with_mode(&init, wifi, WifiApDevice).unwrap();
 
     let ap_config = Config::ipv4_static(StaticConfigV4 {
-        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 0, 1), 24),
+        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 0, 1])),
         dns_servers: Default::default(),
     });
 
@@ -167,222 +169,262 @@ async fn main(spawner: Spawner) -> ! {
     let seed = ((rng.random() as u64) << u32::BITS) + rng.random() as u64;
 
     // Init access point stack
-    let ap_stack = make_static!(Stack::new(
-        ap_interface,
-        ap_config,
-        make_static!(StackResources::<3>::new()),
-        seed
-    ));
+    let ap_stack = mk_static!(
+        Stack<esp_wifi::wifi::WifiDevice<'_, WifiApDevice>>,
+        Stack::new(
+            ap_interface,
+            ap_config,
+            // make_static!(StackResources::<5>::new()),
+            mk_static!(StackResources::<5>, StackResources::<5>::new()),
+            seed
+        )
+    );
 
     // Init wifi networking stack
-    let wifi_stack = make_static!(Stack::new(
-        wifi_interface,
-        wifi_config,
-        make_static!(StackResources::<3>::new()),
-        seed
-    ));
+    // let wifi_stack = make_static!(Stack::new(
+    //     wifi_interface,
+    //     wifi_config,
+    //     make_static!(StackResources::<3>::new()),
+    //     seed
+    // ));
+
+    spawner.spawn(blink(internal_led)).ok();
+    // spawner.must_spawn(publish_play_pause(play_pause_button));
+    // spawner.must_spawn(publish_raw_skip(skip_button));
+    // spawner.must_spawn(publish_skip());
+    // spawner.must_spawn(publish_volume(adc1, pot_pin));
+
+    // spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
+    // spawner.spawn(display_shapes(I2cDevice::new(i2c_bus))).ok();
+    // spawner.spawn(display_volume(I2cDevice::new(i2c_bus))).ok();
+    // spawner.spawn(display_skip(I2cDevice::new(i2c_bus))).ok();
+    // spawner
+    //     .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
+    //     .ok();
 
     spawner.must_spawn(connection(controller, rng));
     spawner.must_spawn(ap_task(ap_stack));
-    spawner.must_spawn(wifi_task(wifi_stack));
+    // spawner.must_spawn(wifi_task(wifi_stack));
 
-    loop {
-        trace!("Checking stack state...");
-        if wifi_stack.is_link_up() {
-            debug!("Link is up!");
-            break;
-        }
-        Timer::after(Duration::from_millis(500)).await;
-    }
+    // loop {
+    //     trace!("Checking stack state...");
+    //     if wifi_stack.is_link_up() {
+    //         debug!("Link is up!");
+    //         break;
+    //     }
+    //     Timer::after(Duration::from_millis(500)).await;
+    // }
 
     loop {
         if ap_stack.is_link_up() {
             break;
         }
+        trace!("AP link is not up");
         Timer::after(Duration::from_millis(500)).await;
     }
 
-    println!("Connect to the AP `esp-wifi` and point your browser to http://192.168.2.1:8080/");
-    println!("Use a static IP in the range 192.168.2.2 .. 192.168.2.255, use gateway 192.168.2.1");
+    // println!("Connect to the AP `esp-wifi` and point your browser to http://192.168.2.1:8080/");
+    // println!("Use a static IP in the range 192.168.2.2 .. 192.168.2.255, use
+    // gateway 192.168.2.1");
 
-    info!("Waiting to get IP address... ");
-    loop {
-        if let Some(config) = wifi_stack.config_v4() {
-            info!("Got IP: {}", config.address);
-            break;
-        }
-        Timer::after(Duration::from_millis(500)).await;
+    let app = mk_static!(picoserve::Router<AppRouter,GlobalState>, net::app_router());
+
+    let config = mk_static!(
+        picoserve::Config<Duration>,
+        picoserve::Config::new(picoserve::Timeouts {
+            start_read_request: Some(Duration::from_secs(5)),
+            read_request: Some(Duration::from_secs(1)),
+            write: Some(Duration::from_secs(1)),
+        })
+        .keep_connection_alive()
+    );
+
+    let wifi_config = net::WifiConfigState(
+        mk_static!(Mutex<CriticalSectionRawMutex, WifiConfig>, Mutex::new(WifiConfig::default())),
+    );
+
+    for id in 0..net::WEB_TASK_POOL_SIZE {
+        spawner.must_spawn(net::site_task(
+            id,
+            ap_stack,
+            app,
+            config,
+            GlobalState { wifi_config },
+        ));
     }
 
-    spawner.spawn(screen_counter(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(display_shapes(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(display_volume(I2cDevice::new(i2c_bus))).ok();
-    spawner.spawn(display_skip(I2cDevice::new(i2c_bus))).ok();
-    spawner
-        .spawn(display_play_pause(I2cDevice::new(i2c_bus)))
-        .ok();
+    // info!("Waiting to get IP address... ");
+    // loop {
+    //     if let Some(config) = wifi_stack.config_v4() {
+    //         info!("Got IP: {}", config.address);
+    //         break;
+    //     }
+    //     Timer::after(Duration::from_millis(500)).await;
+    // }
 
-    let mut ap_rx_buffer = [0; 1536];
-    let mut ap_tx_buffer = [0; 1536];
+    // let mut ap_rx_buffer = [0; 1536];
+    // let mut ap_tx_buffer = [0; 1536];
 
-    let mut ap_socket = TcpSocket::new(ap_stack, &mut ap_rx_buffer, &mut ap_tx_buffer);
+    // let mut ap_socket = TcpSocket::new(ap_stack, &mut ap_rx_buffer, &mut
+    // ap_tx_buffer);
 
-    ap_socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+    // ap_socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-    let mut wifi_rx_buf = [0; 16640];
-    let mut wifi_tx_buf = [0; 16640];
+    // let mut wifi_rx_buf = [0; 16640];
+    // let mut wifi_tx_buf = [0; 16640];
 
-    let state = TcpClientState::<1, 4096, 4096>::new();
+    // let state = TcpClientState::<1, 4096, 4096>::new();
 
-    let tcp_client = TcpClient::new(wifi_stack, &state);
+    // let tcp_client = TcpClient::new(wifi_stack, &state);
 
-    let dns_socket = DnsSocket::new(wifi_stack);
+    // let dns_socket = DnsSocket::new(wifi_stack);
 
-    let config = TlsConfig::new(seed, &mut wifi_rx_buf, &mut wifi_tx_buf, TlsVerify::None);
+    // let config = TlsConfig::new(seed, &mut wifi_rx_buf, &mut wifi_tx_buf,
+    // TlsVerify::None);
 
-    let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
+    // let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
 
-    debug!("Http Client created");
+    // debug!("Http Client created");
 
-    loop {
-        info!("Starting wifi loop...");
+    // loop {
+    //     info!("Starting wifi loop...");
 
-        let code_challenge_raw = random_utf8::<64>(rng);
+    //     let code_challenge_raw = random_utf8::<64>(rng);
 
-        // convert the vec to a string
-        // SAFETY: the verifier is guaranteed to be valid utf8 as it is base64 encoded
-        let code_challenge: String<64> = String::from_utf8(
-            Vec::from_slice(&code_challenge_raw)
-                .expect("should be enough bytes for cloning into the vec"),
-        )
-        .expect("Base64 encoding is valid utf8");
+    //     // convert the vec to a string
+    //     // SAFETY: the verifier is guaranteed to be valid utf8 as it is base64
+    // encoded     let code_challenge: String<64> = String::from_utf8(
+    //         Vec::from_slice(&code_challenge_raw)
+    //             .expect("should be enough bytes for cloning into the vec"),
+    //     )
+    //     .expect("Base64 encoding is valid utf8");
 
-        let token = "TOKEN_GOES_HERE";
+    //     let token = "TOKEN_GOES_HERE";
 
-        let mut string: String<64> = String::new();
+    //     let mut string: String<64> = String::new();
 
-        string.push_str("Bearer ").unwrap();
-        string.push_str(token).unwrap();
-        let mut code_challenge_raw = code_challenge_raw.as_slice();
+    //     string.push_str("Bearer ").unwrap();
+    //     string.push_str(token).unwrap();
+    //     let mut code_challenge_raw = code_challenge_raw.as_slice();
 
-        // SHA256 Hashing the verifier
-        while !code_challenge_raw.is_empty() {
-            // SAFETY: All the HW Sha functions are infallible so unwrap is fine to use if
-            // you use block!
-            code_challenge_raw = block!(sha.update(code_challenge_raw)).unwrap();
-        }
+    //     // SHA256 Hashing the verifier
+    //     while !code_challenge_raw.is_empty() {
+    //         // SAFETY: All the HW Sha functions are infallible so unwrap is fine
+    // to use if         // you use block!
+    //         code_challenge_raw = block!(sha.update(code_challenge_raw)).unwrap();
+    //     }
 
-        let mut hash_buffer: [u8; 32] = [0; 32];
+    //     let mut hash_buffer: [u8; 32] = [0; 32];
 
-        block!(sha.finish(hash_buffer.as_mut_slice())).unwrap();
+    //     block!(sha.finish(hash_buffer.as_mut_slice())).unwrap();
 
-        let mut base64_buf: Vec<u8, 47> = Vec::new();
-        base64_buf.resize(32 * 4 / 3 + 4, 0).unwrap();
+    //     let mut base64_buf: Vec<u8, 47> = Vec::new();
+    //     base64_buf.resize(32 * 4 / 3 + 4, 0).unwrap();
 
-        // Encode the hash to base64
-        let real_b64_len = BASE64_STANDARD_NO_PAD
-            .encode_slice(hash_buffer, &mut base64_buf)
-            .unwrap();
+    //     // Encode the hash to base64
+    //     let real_b64_len = BASE64_STANDARD_NO_PAD
+    //         .encode_slice(hash_buffer, &mut base64_buf)
+    //         .unwrap();
 
-        base64_buf.truncate(real_b64_len);
+    //     base64_buf.truncate(real_b64_len);
 
-        let _verifier_hash = String::from_utf8(base64_buf).unwrap();
+    //     let _verifier_hash = String::from_utf8(base64_buf).unwrap();
 
-        let auth_params = AuthParams {
-            response_type: "code",
-            client_id: CLIENT_ID,
-            scope: "user-read-private%20user-read-email",
-            code_challenge,
-            code_challenge_method: "S256",
-            redirect_uri: "http://192.168.2.1/callback",
-        };
+    //     let auth_params = AuthParams {
+    //         response_type: "code",
+    //         client_id: CLIENT_ID,
+    //         scope: "user-read-private%20user-read-email",
+    //         code_challenge,
+    //         code_challenge_method: "S256",
+    //         redirect_uri: "http://192.168.2.1/callback",
+    //     };
 
-        let headers = [
-            ("User-Agent", "teeny/0.1.0"),
-            ("Accept", "*/*"),
-            ("Connection", "close"),
-        ];
+    //     let headers = [
+    //         ("User-Agent", "teeny/0.1.0"),
+    //         ("Accept", "*/*"),
+    //         ("Connection", "close"),
+    //     ];
 
-        let mut header_buf = [0; 1024 * 8];
+    //     let mut header_buf = [0; 1024 * 8];
 
-        let mut auth_path: String<512> = String::new();
+    //     let mut auth_path: String<512> = String::new();
 
-        auth_path.push_str("/authorize").unwrap();
-        auth_path
-            .push_str(auth_params.to_string().as_str())
-            .inspect_err(|e| println!("{e:?}"))
-            .unwrap();
+    //     auth_path.push_str("/authorize").unwrap();
+    //     auth_path
+    //         .push_str(auth_params.to_string().as_str())
+    //         .inspect_err(|e| println!("{e:?}"))
+    //         .unwrap();
 
-        println!("{:#?}", &auth_path);
+    //     println!("{:#?}", &auth_path);
 
-        let mut request = client
-            .request(Method::GET, "https://accounts.spotify.com")
-            .await
-            .unwrap()
-            .path(&auth_path)
-            .headers(&headers);
+    //     let mut request = client
+    //         .request(Method::GET, "https://accounts.spotify.com")
+    //         .await
+    //         .unwrap()
+    //         .path(&auth_path)
+    //         .headers(&headers);
 
-        // println!("{:#?}", &request.build());
+    //     // println!("{:#?}", &request.build());
 
-        let response = request.send(&mut header_buf).await.unwrap();
+    //     let response = request.send(&mut header_buf).await.unwrap();
 
-        debug!("Request sent");
+    //     debug!("Request sent");
 
-        let content_len = response.content_length.unwrap();
+    //     let content_len = response.content_length.unwrap();
 
-        debug!("Response Recieved");
+    //     debug!("Response Recieved");
 
-        let mut buf = [0; 32 * 1024];
+    //     let mut buf = [0; 32 * 1024];
 
-        if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
-            error!("Error: {e:?}");
-            break;
-        }
+    //     if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
+    //         error!("Error: {e:?}");
+    //         break;
+    //     }
 
-        println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
+    //     println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
 
-        {
+    //     {
 
-            // let token = "TOKEN_GOES_HERE";
-            // let mut string: String<64> = String::new();
-            // string.push_str("Bearer ").unwrap();
-            // string.push_str(token).unwrap();
+    //         // let token = "TOKEN_GOES_HERE";
+    //         // let mut string: String<64> = String::new();
+    //         // string.push_str("Bearer ").unwrap();
+    //         // string.push_str(token).unwrap();
 
-            // let headers = [
-            //     ("User-Agent", "teeny/0.1.0"),
-            //     ("Accept", "*/*"),
-            //     ("Connection", "close"),
-            //     ("Authorization", string.as_str()),
-            // ];
+    //         // let headers = [
+    //         //     ("User-Agent", "teeny/0.1.0"),
+    //         //     ("Accept", "*/*"),
+    //         //     ("Connection", "close"),
+    //         //     ("Authorization", string.as_str()),
+    //         // ];
 
-            // let mut request = client
-            //     .request(Method::GET, "https://accounts.spotify.com")
-            //     .await
-            //     .unwrap()
-            //     .path("/authorise")
-            //     .headers(&headers);
+    //         // let mut request = client
+    //         //     .request(Method::GET, "https://accounts.spotify.com")
+    //         //     .await
+    //         //     .unwrap()
+    //         //     .path("/authorise")
+    //         //     .headers(&headers);
 
-            // let response = request.send(&mut header_buf).await.unwrap();
+    //         // let response = request.send(&mut header_buf).await.unwrap();
 
-            // debug!("Request sent");
+    //         // debug!("Request sent");
 
-            // let content_len = response.content_length.unwrap();
+    //         // let content_len = response.content_length.unwrap();
 
-            // debug!("Response Recieved");
+    //         // debug!("Response Recieved");
 
-            // let mut buf = [0; 50 * 1024];
+    //         // let mut buf = [0; 50 * 1024];
 
-            // if let Err(e) = response.body().reader().read_to_end(&mut
-            // buf).await {     error!("Error: {e:?}");
-            //     break;
-            // }
+    //         // if let Err(e) = response.body().reader().read_to_end(&mut
+    //         // buf).await {     error!("Error: {e:?}");
+    //         //     break;
+    //         // }
 
-            // println!("{:#?}",
-            // core::str::from_utf8(&buf[..content_len]).unwrap());
-        }
+    //         // println!("{:#?}",
+    //         // core::str::from_utf8(&buf[..content_len]).unwrap());
+    //     }
 
-        Timer::after(Duration::from_secs(3)).await;
-    }
+    //     Timer::after(Duration::from_secs(3)).await;
+    // }
 
     let mut ticker = Ticker::every(Duration::from_millis(1000));
 
