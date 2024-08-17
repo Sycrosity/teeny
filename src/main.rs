@@ -155,12 +155,12 @@ async fn main(spawner: Spawner) -> ! {
     });
 
     let wifi = peripherals.WIFI;
-    let (ap_interface, wifi_interface, controller) =
-        esp_wifi::wifi::new_ap_sta(&init, wifi).unwrap();
+    let (ap_interface, controller) =
+        esp_wifi::wifi::new_with_mode(&init, wifi, WifiApDevice).unwrap();
 
     let ap_config = Config::ipv4_static(StaticConfigV4 {
-        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 0, 1), 24),
+        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 0, 1])),
         dns_servers: Default::default(),
     });
 
