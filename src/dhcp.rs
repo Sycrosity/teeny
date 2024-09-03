@@ -65,8 +65,7 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
         }
 
         // remove later
-        if hardware_addr != EthernetAddress::from_bytes(&[0x4c, 0xd9, 0x0e, 0x9c, 0xc5, 0xcf])
-        {
+        if hardware_addr != EthernetAddress::from_bytes(&[0x4c, 0xd9, 0x0e, 0x9c, 0xc5, 0xcf]) {
             error!("not my mac (haha)");
             continue;
         }

@@ -2,11 +2,11 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(unused_variables)]
+#![allow(unused)]
 
 use core::str;
 
-use data::{DhcpLease, SpotifyAccessToken, SpotifyData};
+// use data::{DhcpLease, SpotifyAccessToken, SpotifyData};
 use dhcp::{dhcp, ROUTER_IP};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Ipv4Cidr, Stack, StackResources, StaticConfigV4};
@@ -26,7 +26,7 @@ use esp_wifi::wifi::WifiApDevice;
 use serde::{Deserialize, Serialize};
 use teeny::{
     blink::blink,
-    data::TeenyData,
+    // data::TeenyData,
     net::{self, ap_task, connection, AppRouter, GlobalState, WifiCredentials},
     prelude::*,
 };
@@ -236,7 +236,6 @@ async fn main(spawner: Spawner) {
         ));
     }
 }
-
 
 // pub struct DnsServer<'a, 's, 'n>
 // where

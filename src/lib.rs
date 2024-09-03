@@ -3,7 +3,7 @@
 #![feature(impl_trait_in_assoc_type)]
 #![feature(type_alias_impl_trait)]
 #![feature(error_in_core)]
-#![allow(clippy::unused_unit)]
+#![allow(unused)]
 
 // #[cfg(feature = "adc")]
 // pub mod adc;
@@ -16,6 +16,8 @@ pub mod errors;
 pub mod auth;
 pub mod ble;
 pub mod buttons;
+// pub mod data;
+pub mod dhcp;
 pub mod logger;
 #[cfg(feature = "net")]
 pub mod net;
@@ -41,6 +43,8 @@ pub mod prelude {
 
     // pub const PASSWORD: &str = env!("PASSWORD");
     pub const CLIENT_ID: &str = env!("CLIENT_ID");
+
+    pub const TEENY_DATA_OFFSET: u32 = 0x10000;
 
     pub use core::f64::consts::PI;
 
@@ -90,6 +94,8 @@ pub mod prelude {
     pub use heapless::{String, Vec};
     pub use log::{debug, error, info, log, trace, warn};
     pub use nb::block;
+    pub use serde::{Deserialize, Serialize};
+    // pub use ssd1306::{prelude::*, Ssd1306Async as Ssd1306};
     pub use ssd1306::{prelude::*, Ssd1306};
     pub use static_cell::{make_static, StaticCell};
 }
