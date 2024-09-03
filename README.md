@@ -5,6 +5,13 @@
 A teeny tiny esp32c3 powered spotify controller.
 -------
 
+In progress:
+
++ adding an AP webpage
++ DHCP support
++ DHCP leaser
++ storing data in flash
+
 ## Wiring [TODO]
 
 An unfinished wiring list - a complete wiring diagram can be found in [diagram.json](diagram.json), viewable with [wokwi](https://wokwi.com/) and its vscode extension.
