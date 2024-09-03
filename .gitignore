@@ -17,3 +17,9 @@ target/
 
 # environment variables/secrets
 *.env
+
+# build output
+dist/
+
+# nodejs build artifcats
+node_modules/

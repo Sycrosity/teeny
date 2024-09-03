@@ -2,46 +2,39 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_assoc_type)]
+#![allow(unused_variables)]
 
+use core::str;
+
+use data::{DhcpLease, SpotifyAccessToken, SpotifyData};
+use dhcp::{dhcp, ROUTER_IP};
 use embassy_executor::Spawner;
-use embassy_net::{
-    dns::DnsSocket,
-    tcp::{
-        client::{TcpClient, TcpClientState},
-        TcpSocket,
-    },
-    Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
-};
-use embassy_time::Ticker;
+use embassy_net::{Config, Ipv4Cidr, Stack, StackResources, StaticConfigV4};
+use embedded_storage::nor_flash::MultiwriteNorFlash;
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
     clock::ClockControl,
     gpio::{AnyInput, Io, Level, Pull},
     peripherals::{Peripherals, ADC1},
     rng::Rng,
-    sha::{Sha, ShaMode},
-    timer::{OneShotTimer, PeriodicTimer},
+    sha::Sha256,
+    timer::timg::TimerGroup,
 };
 use esp_println::println;
+use esp_storage::FlashStorage;
 use esp_wifi::wifi::WifiApDevice;
-use reqwless::{
-    client::{HttpClient, TlsConfig, TlsVerify},
-    request::{Method, RequestBuilder},
-};
+use serde::{Deserialize, Serialize};
 use teeny::{
-    auth::AuthParams,
     blink::blink,
-    buttons::{
-        display_play_pause, display_skip, publish_play_pause, publish_raw_skip, publish_skip,
-    },
-    display::{display_shapes, screen_counter},
-    net::{self, ap_task, connection, random_utf8, wifi_task, AppRouter, GlobalState, WifiConfig},
+    data::TeenyData,
+    net::{self, ap_task, connection, AppRouter, GlobalState, WifiCredentials},
     prelude::*,
-    volume::{display_volume, publish_volume},
 };
 
 #[main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) {
+    //MARK: setup
+
     // To change the log_level change the env section in .cargo/config.toml
     // or remove it and set ESP_LOGLEVEL manually before running cargo run
     // this requires a clean rebuild because of https://github.com/
@@ -64,28 +57,17 @@ async fn main(spawner: Spawner) -> ! {
 
     #[cfg(feature = "esp32")]
     {
-        let timg1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG1, &clocks, None);
-        esp_hal_embassy::init(
-            &clocks,
-            // make_static!([OneShotTimer::new(timg1.timer0.into())]),
-            mk_static!(
-                [OneShotTimer<esp_hal::timer::ErasedTimer>; 1],
-                [OneShotTimer::new(timg1.timer0.into())]
-            ),
-        );
+        let timg1 = TimerGroup::new(peripherals.TIMG1, &clocks);
+
+        esp_hal_embassy::init(&clocks, timg1.timer0);
     }
 
     #[cfg(not(feature = "esp32"))]
     {
-        let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
-        esp_hal_embassy::init(
-            &clocks,
-            // make_static!([OneShotTimer::new(systimer.alarm0.into())]),
-            mk_static!(
-                [OneShotTimer<esp_hal::timer::ErasedTimer>; 1],
-                [OneShotTimer::new(systimer.alarm0.into())]
-            ),
-        );
+        let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER)
+            .split::<esp_hal::timer::systimer::Target>();
+
+        esp_hal_embassy::init(&clocks, systimer.alarm0);
     }
 
     let mut adc1_config = AdcConfig::new();
@@ -93,10 +75,8 @@ async fn main(spawner: Spawner) -> ! {
     let rng = Rng::new(peripherals.RNG);
     let mut rng = *RNG.init(rng);
 
-    #[cfg(target_arch = "riscv32")]
-    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256, None);
-    #[cfg(target_arch = "xtensa")]
-    let mut sha = Sha::new(peripherals.SHA, ShaMode::SHA256);
+    let sha256 = Sha256::new();
+    // Sha::update(&mut sha1, remaining).unwrap();
 
     #[cfg(target_arch = "xtensa")]
     let pot_pin = adc1_config.enable_pin(io.pins.gpio32, Attenuation::Attenuation11dB);
@@ -109,21 +89,11 @@ async fn main(spawner: Spawner) -> ! {
     let adc1 =
         &*SHARED_ADC.init_with(|| Mutex::new(Adc::<ADC1>::new(peripherals.ADC1, adc1_config)));
 
-    // #[cfg(target_arch = "xtensa")]
-    // let timer = TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0;
-    // #[cfg(target_arch = "riscv32")]
-    // let timer =
-    // esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
-
-    let timer = PeriodicTimer::new(
-        esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0, &clocks, None)
-            .timer0
-            .into(),
-    );
+    let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
 
     let init = esp_wifi::initialize(
         esp_wifi::EspWifiInitFor::Wifi,
-        timer,
+        timg0.timer0,
         rng,
         peripherals.RADIO_CLK,
         &clocks,
@@ -155,14 +125,20 @@ async fn main(spawner: Spawner) -> ! {
     });
 
     let wifi = peripherals.WIFI;
-    let (ap_interface, controller) =
-        esp_wifi::wifi::new_with_mode(&init, wifi, WifiApDevice).unwrap();
+    let (ap_interface, sta_interface, controller) =
+        esp_wifi::wifi::new_ap_sta(&init, wifi).unwrap();
 
     let ap_config = Config::ipv4_static(StaticConfigV4 {
-        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 0, 1), 24),
-        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 0, 1])),
+        address: Ipv4Cidr::new(ROUTER_IP, 24),
+        gateway: Some(ROUTER_IP),
         dns_servers: Default::default(),
     });
+
+    // let dhcp_config = DhcpConfig::default();
+
+    // let socket = smoltcp::socket::dhcpv4::Socket::new();
+    // let handle = _s.sockets.add(socket);
+    // self.dhcp_socket = Some(handle);
 
     let wifi_config = Config::dhcpv4(Default::default());
 
@@ -175,12 +151,15 @@ async fn main(spawner: Spawner) -> ! {
             ap_interface,
             ap_config,
             // make_static!(StackResources::<5>::new()),
-            mk_static!(StackResources::<5>, StackResources::<5>::new()),
+            mk_static!(
+                StackResources::<{ net::WEB_TASK_POOL_SIZE + 2 }>,
+                StackResources::<{ net::WEB_TASK_POOL_SIZE + 2 }>::new()
+            ),
             seed
         )
     );
 
-    // Init wifi networking stack
+    // // Init wifi networking stack
     // let wifi_stack = make_static!(Stack::new(
     //     wifi_interface,
     //     wifi_config,
@@ -223,10 +202,9 @@ async fn main(spawner: Spawner) -> ! {
         Timer::after(Duration::from_millis(500)).await;
     }
 
-    // println!("Connect to the AP `esp-wifi` and point your browser to http://192.168.2.1:8080/");
-    // println!("Use a static IP in the range 192.168.2.2 .. 192.168.2.255, use
-    // gateway 192.168.2.1");
+    spawner.must_spawn(dhcp(ap_stack));
 
+    //MARK: picoserve
     let app = mk_static!(picoserve::Router<AppRouter,GlobalState>, net::app_router());
 
     let config = mk_static!(
@@ -239,197 +217,166 @@ async fn main(spawner: Spawner) -> ! {
         .keep_connection_alive()
     );
 
-    let wifi_config = net::WifiConfigState(
-        mk_static!(Mutex<CriticalSectionRawMutex, WifiConfig>, Mutex::new(WifiConfig::default())),
+    let wifi_creds = net::WifiCredentialsState(
+        mk_static!(Mutex<CriticalSectionRawMutex, WifiCredentials>, Mutex::new(WifiCredentials::default())),
     );
 
+    //run picoserve
+
     for id in 0..net::WEB_TASK_POOL_SIZE {
+        // let mut rand_bytes: [u8; 16] = [0; 16];
+        // rng.read(&mut rand_bytes);
+
         spawner.must_spawn(net::site_task(
             id,
             ap_stack,
             app,
             config,
-            GlobalState { wifi_config },
+            GlobalState { wifi_creds },
         ));
     }
-
-    // info!("Waiting to get IP address... ");
-    // loop {
-    //     if let Some(config) = wifi_stack.config_v4() {
-    //         info!("Got IP: {}", config.address);
-    //         break;
-    //     }
-    //     Timer::after(Duration::from_millis(500)).await;
-    // }
-
-    // let mut ap_rx_buffer = [0; 1536];
-    // let mut ap_tx_buffer = [0; 1536];
-
-    // let mut ap_socket = TcpSocket::new(ap_stack, &mut ap_rx_buffer, &mut
-    // ap_tx_buffer);
-
-    // ap_socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
-
-    // let mut wifi_rx_buf = [0; 16640];
-    // let mut wifi_tx_buf = [0; 16640];
-
-    // let state = TcpClientState::<1, 4096, 4096>::new();
-
-    // let tcp_client = TcpClient::new(wifi_stack, &state);
-
-    // let dns_socket = DnsSocket::new(wifi_stack);
-
-    // let config = TlsConfig::new(seed, &mut wifi_rx_buf, &mut wifi_tx_buf,
-    // TlsVerify::None);
-
-    // let mut client = HttpClient::new_with_tls(&tcp_client, &dns_socket, config);
-
-    // debug!("Http Client created");
-
-    // loop {
-    //     info!("Starting wifi loop...");
-
-    //     let code_challenge_raw = random_utf8::<64>(rng);
-
-    //     // convert the vec to a string
-    //     // SAFETY: the verifier is guaranteed to be valid utf8 as it is base64
-    // encoded     let code_challenge: String<64> = String::from_utf8(
-    //         Vec::from_slice(&code_challenge_raw)
-    //             .expect("should be enough bytes for cloning into the vec"),
-    //     )
-    //     .expect("Base64 encoding is valid utf8");
-
-    //     let token = "TOKEN_GOES_HERE";
-
-    //     let mut string: String<64> = String::new();
-
-    //     string.push_str("Bearer ").unwrap();
-    //     string.push_str(token).unwrap();
-    //     let mut code_challenge_raw = code_challenge_raw.as_slice();
-
-    //     // SHA256 Hashing the verifier
-    //     while !code_challenge_raw.is_empty() {
-    //         // SAFETY: All the HW Sha functions are infallible so unwrap is fine
-    // to use if         // you use block!
-    //         code_challenge_raw = block!(sha.update(code_challenge_raw)).unwrap();
-    //     }
-
-    //     let mut hash_buffer: [u8; 32] = [0; 32];
-
-    //     block!(sha.finish(hash_buffer.as_mut_slice())).unwrap();
-
-    //     let mut base64_buf: Vec<u8, 47> = Vec::new();
-    //     base64_buf.resize(32 * 4 / 3 + 4, 0).unwrap();
-
-    //     // Encode the hash to base64
-    //     let real_b64_len = BASE64_STANDARD_NO_PAD
-    //         .encode_slice(hash_buffer, &mut base64_buf)
-    //         .unwrap();
-
-    //     base64_buf.truncate(real_b64_len);
-
-    //     let _verifier_hash = String::from_utf8(base64_buf).unwrap();
-
-    //     let auth_params = AuthParams {
-    //         response_type: "code",
-    //         client_id: CLIENT_ID,
-    //         scope: "user-read-private%20user-read-email",
-    //         code_challenge,
-    //         code_challenge_method: "S256",
-    //         redirect_uri: "http://192.168.2.1/callback",
-    //     };
-
-    //     let headers = [
-    //         ("User-Agent", "teeny/0.1.0"),
-    //         ("Accept", "*/*"),
-    //         ("Connection", "close"),
-    //     ];
-
-    //     let mut header_buf = [0; 1024 * 8];
-
-    //     let mut auth_path: String<512> = String::new();
-
-    //     auth_path.push_str("/authorize").unwrap();
-    //     auth_path
-    //         .push_str(auth_params.to_string().as_str())
-    //         .inspect_err(|e| println!("{e:?}"))
-    //         .unwrap();
-
-    //     println!("{:#?}", &auth_path);
-
-    //     let mut request = client
-    //         .request(Method::GET, "https://accounts.spotify.com")
-    //         .await
-    //         .unwrap()
-    //         .path(&auth_path)
-    //         .headers(&headers);
-
-    //     // println!("{:#?}", &request.build());
-
-    //     let response = request.send(&mut header_buf).await.unwrap();
-
-    //     debug!("Request sent");
-
-    //     let content_len = response.content_length.unwrap();
-
-    //     debug!("Response Recieved");
-
-    //     let mut buf = [0; 32 * 1024];
-
-    //     if let Err(e) = response.body().reader().read_to_end(&mut buf).await {
-    //         error!("Error: {e:?}");
-    //         break;
-    //     }
-
-    //     println!("{:#?}", core::str::from_utf8(&buf[..content_len]).unwrap());
-
-    //     {
-
-    //         // let token = "TOKEN_GOES_HERE";
-    //         // let mut string: String<64> = String::new();
-    //         // string.push_str("Bearer ").unwrap();
-    //         // string.push_str(token).unwrap();
-
-    //         // let headers = [
-    //         //     ("User-Agent", "teeny/0.1.0"),
-    //         //     ("Accept", "*/*"),
-    //         //     ("Connection", "close"),
-    //         //     ("Authorization", string.as_str()),
-    //         // ];
-
-    //         // let mut request = client
-    //         //     .request(Method::GET, "https://accounts.spotify.com")
-    //         //     .await
-    //         //     .unwrap()
-    //         //     .path("/authorise")
-    //         //     .headers(&headers);
-
-    //         // let response = request.send(&mut header_buf).await.unwrap();
-
-    //         // debug!("Request sent");
-
-    //         // let content_len = response.content_length.unwrap();
-
-    //         // debug!("Response Recieved");
-
-    //         // let mut buf = [0; 50 * 1024];
-
-    //         // if let Err(e) = response.body().reader().read_to_end(&mut
-    //         // buf).await {     error!("Error: {e:?}");
-    //         //     break;
-    //         // }
-
-    //         // println!("{:#?}",
-    //         // core::str::from_utf8(&buf[..content_len]).unwrap());
-    //     }
-
-    //     Timer::after(Duration::from_secs(3)).await;
-    // }
-
-    let mut ticker = Ticker::every(Duration::from_millis(1000));
-
-    loop {
-        trace!("KeepAlive tick");
-        ticker.next().await;
-    }
 }
+
+
+// pub struct DnsServer<'a, 's, 'n>
+// where
+//     'n: 's,
+// {
+//     dns_socket: &'a mut UdpSocket<'s, 'n, WifiApDevice>,
+//     dns_buffer: [u8; 1536],
+//     ip: [u8; 4],
+//     ttl: Duration,
+// }
+
+// impl<'a, 's, 'n> DnsServer<'a, 's, 'n>
+// where
+//     'n: 's,
+// {
+//     fn new(dns_socket: &'a mut UdpSocket<'s, 'n, WifiApDevice>, ip: [u8; 4],
+// ttl: Duration) -> Self {         Self {
+//             dns_socket,
+//             dns_buffer: [0u8; 1536],
+//             ip,
+//             ttl,
+//         }
+//     }
+
+//     fn handle_dns(&mut self) {
+//         self.dns_socket.work();
+
+//         match self.dns_socket.receive(&mut self.dns_buffer) {
+//             Ok((len, src_addr, src_port)) => {
+//                 if len > 0 {
+//                     log::info!("DNS FROM {:?} / {}", src_addr, src_port);
+//                     log::info!("DNS {:02x?}", &self.dns_buffer[..len]);
+
+//                     let request = &self.dns_buffer[..len];
+//                     let response: Vec<u8, 512> = Vec::new();
+
+//                     let message =
+// domain::base::Message::from_octets(request).unwrap();
+// log::info!("Processing message with header: {:?}", message.header());
+
+//                     let mut responseb =
+//
+// domain::base::MessageBuilder::from_target(response).unwrap();
+
+//                     let response = if matches!(message.header().opcode(),
+// Opcode::QUERY) {                         log::info!("Message is of type
+// Query, processing all questions");
+
+//                         let mut answerb = responseb.start_answer(&message,
+// Rcode::NOERROR).unwrap();
+
+//                         for question in message.question() {
+//                             let question = question.unwrap();
+
+//                             if matches!(question.qtype(), Rtype::A) {
+//                                 log::info!(
+//                                     "Question {:?} is of type A, answering
+// with IP {:?}, TTL {:?}",                                     question,
+//                                     self.ip,
+//                                     self.ttl
+//                                 );
+
+//                                 let record = Record::new(
+//                                     question.qname(),
+//                                     Class::In,
+//                                     self.ttl.as_secs() as u32,
+//                                     A::from_octets(self.ip[0], self.ip[1],
+// self.ip[2], self.ip[3]),                                 );
+//                                 log::info!("Answering question {:?} with
+// {:?}", question, record);
+// answerb.push(record).unwrap();                             } else {
+//                                 log::info!(
+//                                     "Question {:?} is not of type A, not
+// answering",                                     question
+//                                 );
+//                             }
+//                         }
+
+//                         answerb.finish()
+//                     } else {
+//                         log::info!("Message is not of type Query, replying
+// with NotImp");
+
+//                         let headerb = responseb.header_mut();
+
+//                         headerb.set_id(message.header().id());
+//                         headerb.set_opcode(message.header().opcode());
+//                         headerb.set_rd(message.header().rd());
+//                         headerb.set_rcode(domain::base::iana::Rcode::NOTIMP);
+
+//                         responseb.finish()
+//                     };
+
+//                     self.dns_socket.send(src_addr, src_port,
+// &response).unwrap();                 }
+//             }
+//             _ => (),
+//         }
+//     }
+// }
+
+// const CONTENT: &[u8] = b"
+// <!DOCTYPE html>
+// <html lang=\"en\">
+// <head>
+//     <meta charset=\"UTF-8\">
+//     <meta name=\"viewport\" content=\"width=device-width,
+// initial-scale=1.0\">     <title>Hello World</title>
+//     <style>
+//         body {
+//             display: flex;
+//             justify-content: center;
+//             align-items: center;
+//             height: 100vh;
+//             font-family: Arial, sans-serif;
+//             background-color: #f2f2f2;
+//         }
+
+//         h1 {
+//             font-size: 48px;
+//             color: #333;
+//             text-align: center;
+//             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+//             animation: rainbow 5s linear infinite;
+//         }
+
+//         @keyframes rainbow {
+//             0% { color: red; }
+//             14% { color: orange; }
+//             28% { color: yellow; }
+//             42% { color: green; }
+//             57% { color: blue; }
+//             71% { color: indigo; }
+//             85% { color: violet; }
+//             100% { color: red; }
+//         }
+//     </style>
+// </head>
+// <body>
+//     <h1>Hello World! Hello esp-wifi! Hello captive-portal!</h1>
+// </body>
+// </html>
+// ";

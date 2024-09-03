@@ -8,9 +8,9 @@ pub async fn blink(mut led: AnyOutput<'static>) {
         led.toggle();
 
         if led.is_set_high() {
-            info!("ON!");
+            trace!("ON!");
         } else {
-            info!("OFF!");
+            trace!("OFF!");
         }
 
         Timer::after(Duration::from_millis(1000)).await;

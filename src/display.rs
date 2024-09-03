@@ -7,7 +7,7 @@ use embedded_graphics::{
     primitives::{PrimitiveStyleBuilder, Rectangle},
     text::Text,
 };
-use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use ssd1306::{prelude::*, I2CDisplayInterface};
 
 use crate::prelude::*;
 
