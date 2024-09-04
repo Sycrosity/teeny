@@ -53,12 +53,12 @@ taplo:
 _ci_fmt:
     cargo +nightly fmt --all -- --config-path ./rustfmt.nightly.toml --check --color always
 
-_ci_build board: (build board)
+_ci_build board: astro (build board)
 
 [group('ci')]
-_ci_clippy board:
+_ci_clippy board: astro
     cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace -- -D warnings 
 
 _prepare board: (_ci_clippy board) (_ci_build board)
 
-_prepare_all: (_prepare "esp32c3") (_prepare "esp32")
+_prepare_all: astro (_prepare "esp32c3") (_prepare "esp32")
