@@ -130,7 +130,7 @@ pub async fn wifi_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>
     stack.run().await
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct WifiCredentials {
     ssid: String<32>,
     password: String<64>,

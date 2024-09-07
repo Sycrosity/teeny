@@ -10,7 +10,7 @@ esp-hal = { version = "0.20.1", features = ["async", "embedded-io"] }
 
 esp-hal-embassy = { version = "0.3.0", features = ["integrated-timers"] }
 
-esp-backtrace = { version = "0.14.0", features = [
+esp-backtrace = { version = "0.14.1", features = [
   "exception-handler",
   "panic-handler",
   "println",
@@ -30,10 +30,10 @@ esp-wifi = { version = "0.9.1", features = [
 ], optional = true }
 
 #for accessing flash storage
-esp-storage = { version = "0.3.0", features = ["nor-flash", "bytewise-read"] }
+esp-storage = { version = "0.3.0", features = ["nor-flash"] }
 
 #for no-alloc fixed size storage structures
-heapless = "0.8.0"
+heapless = "0.8"
 
 #the gold standard for logging in rust
 log = "0.4"
@@ -49,7 +49,7 @@ embedded-graphics = { version = "0.8.1", features = ["nalgebra_support"] }
 embedded-svc = { version = "0.28.0", default-features = false, optional = true }
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
-embedded-hal = "1.0.0"
+embedded-hal = "^1.0"
 embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 embedded-storage = "0.3.1"
@@ -61,7 +61,7 @@ reqwless = { version = "0.12.0", optional = true }
 # heapless = { version = "0.8.0", default-features = false }
 
 embassy-executor = { version = "0.6.0", features = ["nightly"] }
-embassy-time = { version = "0.3.1" }
+embassy-time = { version = "0.3.2" }
 embassy-sync = "0.6.0"
 embassy-net = { version = "0.4.0", features = [
   "proto-ipv4",
@@ -98,7 +98,9 @@ bincode = { version = "2.0.0-rc.3", default-features = false, features = [
   "derive",
   "serde",
 ] }
-serde = { version = "1.0.209", default-features = false, features = ["derive"] }
+
+serde = { version = "^1.0", default-features = false, features = ["derive"] }
+rkyv = { version = "0.8.0-rc.1", default-features = false, features = [] }
 
 [build-dependencies]
 dotenv = "0.15.0"

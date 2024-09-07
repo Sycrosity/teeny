@@ -2,15 +2,15 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_in_assoc_type)]
-#![allow(unused)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 
-use core::str;
+use core::{mem, str};
 
-// use data::{DhcpLease, SpotifyAccessToken, SpotifyData};
+use data::{DhcpLease, SpotifyAccessToken, SpotifyData};
 use dhcp::{dhcp, ROUTER_IP};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Ipv4Cidr, Stack, StackResources, StaticConfigV4};
-use embedded_storage::nor_flash::MultiwriteNorFlash;
 use esp_hal::{
     analog::adc::{Adc, AdcConfig, Attenuation},
     clock::ClockControl,
@@ -26,10 +26,11 @@ use esp_wifi::wifi::WifiApDevice;
 use serde::{Deserialize, Serialize};
 use teeny::{
     blink::blink,
-    // data::TeenyData,
+    data::TeenyData,
     net::{self, ap_task, connection, AppRouter, GlobalState, WifiCredentials},
     prelude::*,
 };
+use update::TeenyDataWriter;
 
 #[main]
 async fn main(spawner: Spawner) {
@@ -221,6 +222,48 @@ async fn main(spawner: Spawner) {
         mk_static!(Mutex<CriticalSectionRawMutex, WifiCredentials>, Mutex::new(WifiCredentials::default())),
     );
 
+    let dhcp = Vec::from_slice(
+        &[DhcpLease::new(
+            embassy_net::Ipv4Address::BROADCAST,
+            embassy_net::EthernetAddress::from_bytes(&[1, 1, 1, 1, 1, 1]),
+            Instant::MIN,
+        ); 16],
+    )
+    .unwrap();
+
+    let pteeny_data = TeenyData {
+        time: Instant::MIN,
+        ap_creds: WifiCredentials::new(String::try_from("cb9b2622f918406e81bc4fa420ec8d66").unwrap(), String::try_from("cb9b2622f918406e81bc4fa420ec8d66cb9b2622f918406e81bc4fa420ec8d66").unwrap()),
+        sta_creds: WifiCredentials::new(String::try_from("cb9b2622f918406e81bc4fa420ec8d66").unwrap(), String::try_from("cb9b2622f918406e81bc4fa420ec8d66cb9b2622f918406e81bc4fa420ec8d66").unwrap()),
+        dhcp,
+        spotify: Some(SpotifyData::new(SpotifyAccessToken::new(String::try_from("BQCJjpwHWobxXXcuX6Tt467MnJz4B0-MT4LVQO374Yin9iAlxY5IcR0xseiIYMjjq2v2pLhgPZJHkIVNPcC8pE76NEu2x76ddfjato5xOkGmg4aqj95m6THLTkjLNEV1DX9uMmQ-WCs8jEzoDKXz4AO2p4gHumjbycsHSf8E7seau2xnKVFoQeYfmZkmJgCplI56dlrmyN1dkmvg6cxlBZBUtBbnEj3c3tpnQox9tsaNP_4h0FmXehq56Hh-aVWvHnvjKzXbfquBU2sr7VQs1Ku_FOJCI9YGfr").unwrap(), Instant::MIN, String::try_from("BQCJjpwHWobxXXcuX6Tt467MnJz4B0-MT4LVQO374Yin9iAlxY5IcR0xseiIYMjjq2v2pLhgPZJHkIVNPcC8pE76NEu2x76ddfjato5xOkGmg4aqj95m6THLTkjLNEV1DX9uMmQ-WCs8jEzoDKXz4AO2p4gHumjbycsHSf8E7seau2xnKVFoQeYfmZkmJgCplI56dlrmyN1dkmvg6cxlBZBUtBbnEj3c3tpnQox9tsaNP_4h0FmXehq56Hh-aVWvHnvjKzXbfquBU2sr7VQs1Ku_FOJCI9YGfr").unwrap()), String::try_from("cb9b2622f918406e81bc4fa420ec8d66").unwrap())),
+    };
+
+    //max should be 1173, but lets be safe
+    // let mut bytes = [0u8; 4096];
+
+    let flash = FlashStorage::new();
+
+    let mut flash = TeenyDataWriter::new(flash);
+
+    let teeny_data = flash.read().unwrap();
+
+    info!("{teeny_data:?}");
+
+    let before = Instant::now();
+
+    flash.write(pteeny_data).unwrap();
+
+    let after = Instant::now();
+
+    let time_taken = after - before;
+
+    info!(
+        "Write took {:?}.{:0>3} millis",
+        time_taken.as_millis(),
+        time_taken.as_micros() - time_taken.as_millis() * 1000
+    );
+
     //run picoserve
 
     for id in 0..net::WEB_TASK_POOL_SIZE {
@@ -235,6 +278,13 @@ async fn main(spawner: Spawner) {
             GlobalState { wifi_creds },
         ));
     }
+
+    // let mut ticker = Ticker::every(Duration::from_millis(1000));
+
+    // loop {
+    //     trace!("KeepAlive tick");
+    //     ticker.next().await;
+    // }
 }
 
 // pub struct DnsServer<'a, 's, 'n>
@@ -336,46 +386,3 @@ async fn main(spawner: Spawner) {
 //         }
 //     }
 // }
-
-// const CONTENT: &[u8] = b"
-// <!DOCTYPE html>
-// <html lang=\"en\">
-// <head>
-//     <meta charset=\"UTF-8\">
-//     <meta name=\"viewport\" content=\"width=device-width,
-// initial-scale=1.0\">     <title>Hello World</title>
-//     <style>
-//         body {
-//             display: flex;
-//             justify-content: center;
-//             align-items: center;
-//             height: 100vh;
-//             font-family: Arial, sans-serif;
-//             background-color: #f2f2f2;
-//         }
-
-//         h1 {
-//             font-size: 48px;
-//             color: #333;
-//             text-align: center;
-//             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-//             animation: rainbow 5s linear infinite;
-//         }
-
-//         @keyframes rainbow {
-//             0% { color: red; }
-//             14% { color: orange; }
-//             28% { color: yellow; }
-//             42% { color: green; }
-//             57% { color: blue; }
-//             71% { color: indigo; }
-//             85% { color: violet; }
-//             100% { color: red; }
-//         }
-//     </style>
-// </head>
-// <body>
-//     <h1>Hello World! Hello esp-wifi! Hello captive-portal!</h1>
-// </body>
-// </html>
-// ";

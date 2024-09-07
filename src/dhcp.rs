@@ -1,3 +1,4 @@
+use data::DhcpLease;
 use embassy_net::{udp::UdpSocket, EthernetAddress, Ipv4Address, Stack};
 use esp_wifi::wifi::{WifiApDevice, WifiDevice};
 use smoltcp::{
@@ -8,6 +9,11 @@ use smoltcp::{
 use crate::prelude::*;
 
 pub const ROUTER_IP: Ipv4Address = Ipv4Address::new(192, 168, 0, 1);
+
+pub struct DHCPServer {
+    pub dhcp_socket: UdpSocket<'static>,
+    pub leases: Vec<DhcpLease, 16>,
+}
 
 #[task]
 pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -> ! {
@@ -65,7 +71,7 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
         }
 
         // remove later
-        if hardware_addr != EthernetAddress::from_bytes(&[0x4c, 0xd9, 0x0e, 0x9c, 0xc5, 0xcf]) {
+        if hardware_addr != EthernetAddress::from_bytes(&[0x5c, 0xe9, 0xfe, 0xac, 0xd5, 0xdf]) {
             error!("not my mac (haha)");
             continue;
         }
@@ -117,7 +123,7 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
                 }
 
                 let addr = if client_id
-                    == EthernetAddress::from_bytes(&[0x4c, 0xd9, 0x0e, 0x9c, 0xc5, 0xcf])
+                    == EthernetAddress::from_bytes(&[0x5c, 0xe9, 0xfe, 0xac, 0xd5, 0xdf])
                 {
                     provisioned_address
                 } else {
@@ -137,8 +143,6 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
             }
             DhcpMessageType::Request => {
                 // let transaction_id = rng.random();
-
-                // dhcp_repr.secs;
 
                 //make random from pool in future
                 let provisioned_address = Ipv4Address::new(192, 168, 0, 100);
@@ -172,7 +176,6 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
                         .unwrap(),
                     ),
                     additional_options: Default::default(),
-                    // additional_options: self.outgoing_options,
                 };
 
                 let mut reply_packet = DhcpPacket::new_unchecked(&mut buf);
@@ -184,7 +187,7 @@ pub async fn dhcp(ap_stack: &'static Stack<WifiDevice<'static, WifiApDevice>>) -
                 }
 
                 let addr = if client_id
-                    == EthernetAddress::from_bytes(&[0x4c, 0xd9, 0x0e, 0x9c, 0xc5, 0xcf])
+                    == EthernetAddress::from_bytes(&[0x5c, 0xe9, 0xfe, 0xac, 0xd5, 0xdf])
                 {
                     provisioned_address
                 } else {

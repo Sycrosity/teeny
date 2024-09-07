@@ -1,5 +1,5 @@
 [target.'cfg(any(target_arch = "xtensa", target_arch = "riscv32"))']
-runner = "espflash flash --monitor"
+runner = "espflash flash --monitor -T partitions.csv"
 
 
 [env]

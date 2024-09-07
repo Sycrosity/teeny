@@ -16,12 +16,13 @@ pub mod errors;
 pub mod auth;
 pub mod ble;
 pub mod buttons;
-// pub mod data;
+pub mod data;
 pub mod dhcp;
 pub mod logger;
 #[cfg(feature = "net")]
 pub mod net;
 pub mod potentiometer;
+pub mod update;
 pub mod volume;
 
 /// A simplified version of [`make_static`](`static_cell::make_static`), while [rust-analyzer#13824](https://github.com/rust-lang/rust-analyzer/issues/13824) exists (due to TAIT not being implimented yet: [rust#120700](https://github.com/rust-lang/rust/pull/120700)).
@@ -44,10 +45,14 @@ pub mod prelude {
     // pub const PASSWORD: &str = env!("PASSWORD");
     pub const CLIENT_ID: &str = env!("CLIENT_ID");
 
-    pub const TEENY_DATA_OFFSET: u32 = 0x10000;
+    pub const TEENY_LENGTH_OFFSET: u32 = 0x10000;
+    pub const TEENY_DATA_OFFSET: u32 = TEENY_LENGTH_OFFSET + size_of::<usize>() as u32;
+
+    pub const WORD_SIZE: usize = 4;
 
     pub use core::f64::consts::PI;
 
+    pub use data::TeenyData;
     pub use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     pub use embassy_sync::{
         blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
@@ -76,6 +81,10 @@ pub mod prelude {
     pub type AdcMutex = Mutex<CriticalSectionRawMutex, Adc<'static, esp_hal::peripherals::ADC1>>;
 
     pub static RNG: StaticCell<Rng> = StaticCell::new();
+
+    pub static SHARED_TEENY_DATA: StaticCell<AdcMutex> = StaticCell::new();
+
+    pub type TeenyDataMutex = Mutex<CriticalSectionRawMutex, TeenyData>;
 
     pub use base64::prelude::*;
     pub use embassy_executor::task;
