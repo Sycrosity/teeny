@@ -23,17 +23,23 @@ clippy board="esp32c3":
     cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}
 
 [group('release')]
-release board="esp32c3":
+release board="esp32c3": astro
     cargo +esp run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }},release --release
 
-# test board: fmt
-#     cargo +esp nextest run --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --release
+watch board="esp32c3":
+    cargo +esp watch -x 'clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }}'
+
+astro:
+    bun run build
+
+test board="esp32c3":
+    cargo nextest run --features {{ board }}
 
 [group('ci')]
-prepare: fmt (_prepare "esp32") (_prepare "esp32c3")
+prepare: fmt _prepare_all
 
 [group('ci')]
-fix board:
+fix board="esp32c3":
     cargo +esp clippy --fix --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --allow-dirty
 
 [group('ci')]
@@ -47,12 +53,12 @@ taplo:
 _ci_fmt:
     cargo +nightly fmt --all -- --config-path ./rustfmt.nightly.toml --check --color always
 
-_ci_build board: (build board)
+_ci_build board: astro (build board)
 
 [group('ci')]
-_ci_clippy board:
+_ci_clippy board: astro
     cargo +esp clippy --target {{ if board == "esp32" { "xtensa-esp32-none-elf" } else { "riscv32imc-unknown-none-elf" } }} --features {{ board }} --workspace -- -D warnings 
 
 _prepare board: (_ci_clippy board) (_ci_build board)
 
-_prepare_all: (_prepare "esp32c3") (_prepare "esp32")
+_prepare_all: astro (_prepare "esp32c3") (_prepare "esp32")

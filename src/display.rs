@@ -7,7 +7,7 @@ use embedded_graphics::{
     primitives::{PrimitiveStyleBuilder, Rectangle},
     text::Text,
 };
-use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
+use ssd1306::{prelude::*, I2CDisplayInterface};
 
 use crate::prelude::*;
 
@@ -103,7 +103,7 @@ pub async fn screen_counter(mut i2c: SharedI2C) {
         const BOUNDING_BOX: BoundingBox = BoundingBox::new(Point::new(0, 0), Point::new(64, 6));
 
         let mut display = Ssd1306::new(
-            I2CDisplayInterface::new(i2c),
+            I2CInterface::new(i2c, 0x3c, 0x40),
             DisplaySize128x64,
             DisplayRotation::Rotate0,
         );

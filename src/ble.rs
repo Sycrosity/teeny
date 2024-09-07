@@ -1,5 +1,3 @@
-use esp_hal::gpio::AnyOutput;
-
 use crate::prelude::*;
 
 #[task]

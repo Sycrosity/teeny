@@ -6,22 +6,22 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-esp-hal = { version = "0.19.0", features = ["async", "embedded-io"] }
+esp-hal = { version = "0.20.1", features = ["async", "embedded-io"] }
 
-esp-hal-embassy = { version = "0.2.0", features = ["integrated-timers"] }
+esp-hal-embassy = { version = "0.3.0", features = ["integrated-timers"] }
 
-esp-backtrace = { version = "0.13.0", features = [
+esp-backtrace = { version = "0.14.1", features = [
   "exception-handler",
   "panic-handler",
   "println",
 ] }
 
-esp-println = { version = "0.10.0" }
+esp-println = { version = "0.11.0" }
 #allocation support for esp devices
 esp-alloc = { version = "0.4.0", optional = true }
 
 #for wifi connectivity for esp controllers.
-esp-wifi = { version = "0.7.1", features = [
+esp-wifi = { version = "0.9.1", features = [
   "embassy-net",
   "async",
   "wifi-default",
@@ -29,14 +29,18 @@ esp-wifi = { version = "0.7.1", features = [
   "utils",
 ], optional = true }
 
-heapless = "0.8.0"
+#for accessing flash storage
+esp-storage = { version = "0.3.0", features = ["nor-flash"] }
+
+#for no-alloc fixed size storage structures
+heapless = "0.8"
 
 #the gold standard for logging in rust
-log = "0.4.20"
-#implimentation of the c "libm" maths library
+log = "0.4"
+#implimentation of thes c "libm" maths library
 libm = "0.2.8"
 #for making static variables at compile time
-static_cell = { version = "2.0.0", features = ["nightly"] }
+static_cell = { version = "2.1.0", features = ["nightly"] }
 
 #traits and functions for working with embedded graphics in rust
 embedded-graphics = { version = "0.8.1", features = ["nalgebra_support"] }
@@ -45,9 +49,11 @@ embedded-graphics = { version = "0.8.1", features = ["nalgebra_support"] }
 embedded-svc = { version = "0.28.0", default-features = false, optional = true }
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
-embedded-hal = "1.0.0"
+embedded-hal = "^1.0"
 embedded-hal-async = "^1.0"
 embedded-hal-bus = { version = "0.2.0", features = ["async"] }
+embedded-storage = "0.3.1"
+# embedded-storage-async = "0.4.1"
 
 # no_std http/s requests.
 reqwless = { version = "0.12.0", optional = true }
@@ -55,7 +61,7 @@ reqwless = { version = "0.12.0", optional = true }
 # heapless = { version = "0.8.0", default-features = false }
 
 embassy-executor = { version = "0.6.0", features = ["nightly"] }
-embassy-time = { version = "0.3.1" }
+embassy-time = { version = "0.3.2" }
 embassy-sync = "0.6.0"
 embassy-net = { version = "0.4.0", features = [
   "proto-ipv4",
@@ -63,14 +69,38 @@ embassy-net = { version = "0.4.0", features = [
   "tcp",
   "medium-ethernet",
   "dhcpv4",
+  "udp",
 ], optional = true }
 embassy-embedded-hal = { version = "0.2.0" }
 
 #ssd1306 display driver with embeddded graphics support
 ssd1306 = { version = "0.9.0" }
+
+
 display-interface = "0.5.0"
 base64 = { version = "0.22.1", default-features = false }
 picoserve = { version = "0.12.2", features = ["embassy", "log"] }
+zerocopy = { version = "0.7.35", default-features = false }
+enumset = "1.1.5"
+smoltcp = { version = "0.11.0", default-features = false, features = [
+  "async",
+  "proto-dhcpv4",
+  "proto-igmp",
+  "socket-dhcpv4",
+  "socket-dns",
+  "socket-raw",
+  "socket-tcp",
+  "socket-udp",
+] }
+
+# rkyv = { version = "0.7.45", default-features = false }
+bincode = { version = "2.0.0-rc.3", default-features = false, features = [
+  "derive",
+  "serde",
+] }
+
+serde = { version = "^1.0", default-features = false, features = ["derive"] }
+rkyv = { version = "0.8.0-rc.1", default-features = false, features = [] }
 
 [build-dependencies]
 dotenv = "0.15.0"
@@ -101,14 +131,21 @@ opt-level = 3
 [profile.dev.package.esp-wifi]
 opt-level = 3
 
+[profile.dev.package.esp-storage]
+opt-level = 3
+
+[profile.release.package.esp-storage]
+opt-level = 3
 [features]
-default = ["log", "net", "alloc"]
+default = ["log", "net"]
 
 alloc = ["dep:esp-alloc", "picoserve/alloc", "reqwless/alloc"]
 
 net = ["dep:esp-wifi", "dep:embassy-net", "dep:embedded-svc", "dep:reqwless"]
 
 verbose-wifi = ["esp-wifi/wifi-logs"]
+
+dump-packets = ["esp-wifi/dump-packets"]
 
 release = ["log/release_max_level_off"]
 
@@ -130,6 +167,7 @@ esp32 = [
   "esp-backtrace/esp32",
   "esp-println/esp32",
   "esp-wifi/esp32",
+  "esp-storage/esp32",
 ]
 
 esp32c3 = [
@@ -138,9 +176,11 @@ esp32c3 = [
   "esp-backtrace/esp32c3",
   "esp-println/esp32c3",
   "esp-wifi/esp32c3",
+  "esp-storage/esp32c3",
 ]
 
 [patch.crates-io]
 ssd1306 = { version = "0.9.0", git = "https://github.com/embedevices-rs/ssd1306", branch = "async" }
-esp-hal-embassy = { version = "0.2.0", git = "https://github.com/Sycrosity/esp-hal", package = "esp-hal-embassy", branch = "until-release" }
+picoserve = { version = "0.12.2", git = "https://github.com/sammhicks/picoserve", branch = "nest_fix" }
+# esp-hal-embassy = { version = "0.2.0", git = "https://github.com/Sycrosity/esp-hal", package = "esp-hal-embassy", branch = "until-release" }
 # reqwless = { version = "0.12.0", path = "/Users/louis/dev/embedded/reqwless" }

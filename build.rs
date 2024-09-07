@@ -10,14 +10,14 @@ fn main() -> miette::Result<()> {
 
     dotenv::dotenv().ok();
 
-    println!(
-        "cargo::rustc-env=SSID={}",
-        std::env::var("SSID").unwrap_or_default()
-    );
-    println!(
-        "cargo::rustc-env=PASSWORD={}",
-        std::env::var("PASSWORD").unwrap_or_default()
-    );
+    // println!(
+    //     "cargo::rustc-env=SSID={}",
+    //     std::env::var("SSID").unwrap_or_default()
+    // );
+    // println!(
+    //     "cargo::rustc-env=PASSWORD={}",
+    //     std::env::var("PASSWORD").unwrap_or_default()
+    // );
     println!(
         "cargo::rustc-env=CLIENT_ID={}",
         std::env::var("CLIENT_ID").unwrap_or_default()
